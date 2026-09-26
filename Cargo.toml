@@ -31,6 +31,7 @@ wgpu = { version = "30.0.1", default-features = false, features = ["vulkan", "wg
 name = "koi-pond"
 description = "A tranquil koi pond for terminals with the Kitty graphics protocol"
 readme = "README.md"
+repository = "https://github.com/JeremyBYU/koi"
 keywords = ["koi", "terminal", "kitty-graphics", "ambient", "game"]
 categories = ["games", "command-line-utilities"]
 version.workspace = true
