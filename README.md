@@ -14,7 +14,7 @@ koi draws with the Kitty graphics protocol, so the pond is real images, not text
 
 koi runs on Linux and macOS in a terminal with the Kitty graphics protocol, such as [Ghostty](https://ghostty.org) or [Kitty](https://sw.kovidgoyal.net/kitty/).
 
-Download the archive for your system from the Releases page, unpack it and run `koi`:
+Download the archive for your system from the [latest release](https://github.com/JeremyBYU/koi/releases/latest), unpack it and run `koi`:
 
 ```sh
 tar xzf koi-0.1.0-x86_64-linux.tar.gz
@@ -36,13 +36,14 @@ If your terminal can't show the images, koi says so and exits. That includes a t
 
 ### More music
 
-koi comes with three tracks. The full set of 19 calm tracks by Kevin MacLeod is a separate download of about 180 MB. From a checkout of this repository:
+koi comes with three tracks. The full set of 19 calm tracks by Kevin MacLeod is a separate [music pack](https://github.com/JeremyBYU/koi/releases/tag/music-v1) of about 170 MB. This puts it where koi looks first:
 
 ```sh
-scripts/fetch-music.sh
+mkdir -p ~/.local/share/koi-pond
+curl -L https://github.com/JeremyBYU/koi/releases/download/music-v1/koi-music.tar.gz | tar xz -C ~/.local/share/koi-pond
 ```
 
-This downloads them into `~/.local/share/koi-pond/music`, where koi looks first. It needs `curl` and `jq`. You can also point `audio.music_dir` in the config at any folder of mp3 and ogg files.
+From a checkout of this repository, `scripts/fetch-music.sh` downloads the same tracks from their source instead. You can also point `audio.music_dir` in the config at any folder of mp3 and ogg files.
 
 ### Build from source
 

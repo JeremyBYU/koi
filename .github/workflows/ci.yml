@@ -38,12 +38,15 @@ jobs:
   # a Mac to look at it on.
   macos-screenshot:
     runs-on: macos-14
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release
       - run: brew install --cask ghostty
+      # koi exits within a second with a message if the terminal cannot show its images, so
+      # still running after 25 s means the probe passed and the pond is up.
       - name: Run koi in Ghostty
         run: |
           printf '[audio]\nenabled = false\n[pond]\nseed = 7\n' > "$RUNNER_TEMP/koi.toml"
@@ -51,12 +54,19 @@ jobs:
           chmod +x "$RUNNER_TEMP/run.sh"
           open -na /Applications/Ghostty.app --args --command="$RUNNER_TEMP/run.sh" --window-width=160 --window-height=45
           sleep 25
-          screencapture -x "$RUNNER_TEMP/koi-macos.png"
-          cat "$RUNNER_TEMP/koi.err" || true
+          echo "koi stderr:"; cat "$RUNNER_TEMP/koi.err" || true
+          pgrep -lx koi
+      # The screen may need a permission nobody can grant here, so this is best effort.
+      - name: Screenshot
+        timeout-minutes: 2
+        continue-on-error: true
+        run: screencapture -x "$RUNNER_TEMP/koi-macos.png"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: koi-macos-screenshot
           path: ${{ runner.temp }}/koi-macos.png
+          if-no-files-found: ignore
 
   msrv:
     runs-on: ubuntu-24.04
