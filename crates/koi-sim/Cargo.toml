@@ -1,0 +1,4 @@
+[package]
+name = "koi-sim"
+version.workspace = true
+edition.workspace = true

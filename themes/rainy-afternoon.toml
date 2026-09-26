@@ -1,0 +1,39 @@
+name = "Rainy Afternoon"
+description = "Overcast summer rain: darker water, rich greens, rings from raindrops, hydrangea violet."
+
+[palette]
+deep = "#2C5C6E"
+mid = "#467F84"
+shallow = "#6FA29A"
+highlight = "#DDE8E4"
+shadow = "#3E5670"
+stone_light = "#B4BAAE"
+stone_dark = "#56625F"
+lily_dark = "#2A7A44"
+lily_light = "#78BC58"
+lily_flower = "#9A92D4"
+koi_white = "#EEF0EA"
+koi_red = "#E0502F"
+koi_sumi = "#26282E"
+ogon = "#E9B544"
+outline = "#243A44"
+
+[light]
+diffuse = 0.85
+warm = 0.05
+
+[style]
+caustics = 0.0
+glint = 0.4
+cloud_reflections = 0.2
+outline = "dark"
+wash = 0.08
+wash_top = "#C8D2D0"
+wash_bottom = "#C8D2D0"
+
+[scene]
+flower = "water-lily"
+petals = 3
+petal_kinds = ["leaf"]
+weather = "rain"
+weather_amount = 0.6

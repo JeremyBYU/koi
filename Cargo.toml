@@ -1,0 +1,48 @@
+[workspace]
+members = ["crates/*"]
+# Plain cargo build, test and clippy at the root cover every crate.
+default-members = [".", "crates/*"]
+# The prototypes are standalone crates with their own lockfiles.
+exclude = ["proto"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+koi-audio = { path = "crates/koi-audio" }
+koi-render = { path = "crates/koi-render" }
+koi-sim = { path = "crates/koi-sim" }
+koi-term = { path = "crates/koi-term" }
+koi-theme = { path = "crates/koi-theme" }
+base64 = "0.22"
+bytemuck = { version = "1.25", features = ["derive"] }
+libc = "0.2"
+pollster = "1.0"
+rodio = { version = "0.22.2", default-features = false, features = ["playback", "mp3", "vorbis"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+symphonia = { version = "0.5", default-features = false, features = ["mp3", "ogg", "vorbis"] }
+toml = "0.9"
+wgpu = { version = "30.0.1", default-features = false, features = ["vulkan", "wgsl", "std"] }
+
+[package]
+name = "koi-pond"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "koi"
+path = "src/main.rs"
+
+[dependencies]
+koi-audio.workspace = true
+koi-render.workspace = true
+koi-sim.workspace = true
+koi-term.workspace = true
+koi-theme.workspace = true
+serde.workspace = true
+toml.workspace = true
+
+[profile.release]
+debug = false

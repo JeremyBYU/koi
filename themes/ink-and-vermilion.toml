@@ -1,0 +1,50 @@
+name = "Ink and Vermilion"
+description = "Ink wash on pale paper with bamboo and paper grain; the koi are the only strong color."
+
+[palette]
+deep = "#7FA39C"
+mid = "#A6C0B6"
+shallow = "#CCD8C8"
+highlight = "#F7F1E1"
+shadow = "#6D7F8C"
+stone_light = "#EFE6D2"
+stone_dark = "#3B3A40"
+lily_dark = "#5D6F5C"
+lily_light = "#8A9A80"
+lily_flower = "#FBF6EA"
+koi_white = "#FBF6EA"
+koi_red = "#D4553A"
+koi_sumi = "#2A292E"
+ogon = "#D9A441"
+asagi_blue = "#6D7F8C"
+asagi_red = "#D4553A"
+food = "#D9A441"
+outline = "#2A292E"
+swatches = ["#2a292e", "#3b3a40", "#5d6f5c", "#6d7f8c", "#8a9a80", "#7fa39c", "#a6c0b6", "#ccd8c8", "#efe6d2", "#f7f1e1", "#fbf6ea"]
+
+[light]
+warm = 0.05
+cool = 0.2
+
+[style]
+depth_bands = 2
+tone_steps = 2
+koi_tones = 2
+grain = 0.08
+outline = "dark"
+palette_lock = "scene"
+caustics = 0.0
+glint = 0.3
+cloud_reflections = 0.0
+
+[scene]
+floor = "slate"
+pebbles = 0.0
+moss = 0.2
+bank = "gravel"
+flowers = 0.2
+flower = "water-lily"
+foliage = ["top-left"]
+foliage_kind = "bamboo"
+petals = 3
+petal_kinds = ["leaf"]

@@ -1,0 +1,10 @@
+[package]
+name = "koi-audio"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+koi-sim.workspace = true
+rodio.workspace = true
+serde_json.workspace = true
+symphonia.workspace = true

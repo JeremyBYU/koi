@@ -1,0 +1,16 @@
+# Shared base for pixel themes. Hidden from the cycle. Pixel themes extend this and
+# restate their own palette.
+hidden = true
+name = "Pixel base"
+description = "Hard edges, no grain, dash glints, selective outlines, locked palette."
+
+[style]
+pixel_px = 4
+band_softness = 0.0
+grain = 0.0
+bloom = 0.0
+outline = "selout"
+highlight_style = "dashes"
+caustic_softness = 0.06
+palette_lock = "scene"
+anim_hz = 4

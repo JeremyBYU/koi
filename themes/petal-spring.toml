@@ -1,0 +1,35 @@
+name = "Petal Spring"
+description = "Cherry blossom time: pink light, pastel water, pink lotus on most pads, petals everywhere."
+
+[palette]
+deep = "#3A7FA0"
+mid = "#62B2B0"
+shallow = "#A4DCD0"
+highlight = "#FFDCE4"
+shadow = "#7A6CA8"
+stone_light = "#EED8D0"
+stone_dark = "#7E7888"
+lily_dark = "#4F8F55"
+lily_light = "#B2D77E"
+lily_flower = "#F4A9BE"
+koi_white = "#FBF6F0"
+koi_red = "#E2502F"
+koi_sumi = "#2C2832"
+ogon = "#F2BC4A"
+outline = "#22303F"
+
+[light]
+warm = 0.3
+
+[style]
+grain = 0.03
+outline = "dark"
+cloud_reflections = 0.18
+
+[scene]
+pad_size = 0.75
+flowers = 0.7
+foliage = ["top-left", "top-right", "bottom-right"]
+foliage_kind = "cherry"
+petals = 24
+petal_kinds = ["blossom", "blossom", "blossom", "white"]

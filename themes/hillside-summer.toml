@@ -1,0 +1,44 @@
+name = "Hillside Summer"
+description = "Cozy farm pond as pixel art: plank edge, grass bank, teal water, 18 colors from Resurrect 64."
+extends = "pixel"
+family = "pixel-garden"
+time = "noon"
+credit = "Palette: Resurrect 64 by Kerrie Lake, https://lospec.com/palette-list/resurrect-64"
+
+[palette]
+deep = "#0B5E65"
+mid = "#0B8A8F"
+shallow = "#0EAF9B"
+highlight = "#FDCBB0"
+shadow = "#625565"
+stone_light = "#C7DCD0"
+stone_dark = "#625565"
+lily_dark = "#165A4C"
+lily_light = "#239063"
+lily_flower = "#ED8099"
+koi_white = "#FFFFFF"
+koi_red = "#EA4F36"
+koi_sumi = "#2E222F"
+ogon = "#F9C22B"
+asagi_blue = "#9BABB2"
+asagi_red = "#F57D4A"
+food = "#E6904E"
+outline = "#2E222F"
+swatches = ["#2e222f", "#3e3546", "#625565",
+  "#cd683d", "#e6904e", "#fbb954", "#f9c22b", "#165a4c", "#239063",
+  "#0b5e65", "#0b8a8f", "#0eaf9b",
+  "#4d9be6", "#ed8099", "#fca790", "#fdcbb0", "#ea4f36", "#f57d4a"]
+
+[style]
+palette_lock = "scene"
+caustics = 0.3
+
+[scene]
+floor = "moss"
+pebbles = 0.0
+rim = "planks"
+bank = "grass"
+flower = "water-lily"
+foliage = ["top-left"]
+petals = 5
+petal_kinds = ["leaf", "white"]

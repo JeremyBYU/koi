@@ -1,0 +1,32 @@
+name = "Cedar Shade"
+description = "A pond under a heavy canopy: blue-teal water, bright pads, yellow-green sun spots."
+
+[palette]
+deep = "#1C5566"
+mid = "#2F7A80"
+shallow = "#6BA89A"
+highlight = "#F1F0C0"
+shadow = "#1F3F4E"
+stone_light = "#C9C7A0"
+stone_dark = "#4F625A"
+lily_dark = "#3A7E3E"
+lily_light = "#A2CC62"
+lily_flower = "#F4F0E0"
+koi_white = "#F4F2E6"
+koi_red = "#E8602F"
+koi_sumi = "#22262A"
+ogon = "#EDB83E"
+
+[style]
+caustics = 0.4
+leaf_shadows = 1.0
+cloud_reflections = 0.0
+
+[scene]
+floor = "moss"
+flower = "water-lily"
+foliage = ["top-left", "top-right", "bottom-left", "bottom-right"]
+foliage_density = 1.6
+foliage_kind = "pine"
+petals = 5
+petal_kinds = ["leaf"]

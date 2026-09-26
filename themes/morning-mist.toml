@@ -1,0 +1,41 @@
+name = "Morning Mist"
+description = "Cool dawn haze: blue-grey water, rose-gold first light, fog at the edges."
+family = "garden"
+time = "dawn"
+
+[palette]
+deep = "#46708C"
+mid = "#6B93A4"
+shallow = "#A6C4C8"
+highlight = "#F6DCCB"
+shadow = "#5A6894"
+stone_light = "#D8D6D0"
+stone_dark = "#747C8A"
+lily_dark = "#4A7A66"
+lily_light = "#9CBB98"
+lily_flower = "#EFC0CC"
+koi_white = "#F8F5F0"
+koi_red = "#D9573A"
+koi_sumi = "#2E2E36"
+ogon = "#EDC05A"
+outline = "#2E3E50"
+
+[light]
+sun = [-0.8, -0.5]
+warm = 0.1
+diffuse = 0.5
+
+[style]
+caustics = 0.3
+caustic_scale = 1.4
+glint = 0.5
+cloud_reflections = 0.0
+outline = "dark"
+wash = 0.08
+wash_top = "#F6DCCB"
+wash_bottom = "#C9D8DC"
+
+[scene]
+weather = "mist"
+weather_amount = 0.5
+petals = 4

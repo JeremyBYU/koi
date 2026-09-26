@@ -1,0 +1,89 @@
+# Summer Garden is the root theme. It holds every key with its default, and a theme
+# with no `extends` extends it. Other themes list only what they change.
+# See research/style/SYSTEM.md for what each key does and where it lands in the code.
+
+# These six belong to the file they are written in and are never inherited.
+name = "Summer Garden"
+description = "Bright summer afternoon, sandy shallows, pink lotus, cream light and blue-violet shade."
+family = "garden"   # themes in one family are the same place at different times; default is the id
+time = "noon"       # dawn | morning | noon | afternoon | evening | dusk | night
+credit = ""         # palette author and URL, required for a borrowed palette
+# hidden = true     # a base for other themes, left out of the cycle
+
+[palette]
+# Required: every theme resolves all fourteen.
+deep = "#217E9E"
+mid = "#43B09A"
+shallow = "#78D8CC"
+highlight = "#FFF3D2"
+shadow = "#3C5A8C"
+stone_light = "#E2D2A8"
+stone_dark = "#6F7C78"
+lily_dark = "#3E8A4A"
+lily_light = "#9CCB6A"
+lily_flower = "#F4A6BA"
+koi_white = "#FBF6EC"
+koi_red = "#E8502E"
+koi_sumi = "#2A2630"
+ogon = "#F2B63D"
+# Derived when unset (rules in SYSTEM.md). Set here to match the original palette.
+# A derived slot applies to the file that sets it: children derive their own.
+# outline and cloud are left to their rules.
+asagi_blue = "#6E93B5"
+asagi_red = "#E07A4A"
+food = "#C98B45"
+ui_text = "#F7F3E8"
+ui_dim = "#A9D2C6"
+ui_accent = "#F2B63D"
+# Colors palette_lock snaps to. Empty means every slot color.
+swatches = []
+
+[light]
+sun = [-0.6, -0.8]    # direction the light comes from
+warm = 0.2            # lit sides mix toward highlight
+cool = 0.15           # shaded sides mix toward shadow
+ambient = 1.0         # overall brightness
+shadow_len = 1.0      # cast shadow offset multiplier (evening > 1)
+diffuse = 0.0         # 0 = direct sun, 1 = overcast: no cast shadows, flat light
+
+[style]
+pixel_px = 0          # device pixels per art pixel; 0 = painted (render.water_px applies)
+tone_steps = 3        # posterize steps for floor light, pads, stones
+depth_bands = 3       # flat water depth bands
+band_softness = 0.3   # soft edge between bands and tones, 0 = hard
+koi_tones = 3         # cel steps on the koi
+outline = "soft"      # none | soft | dark | selout | rim
+grain = 0.04          # static paper grain, fraction of brightness
+dither = "none"       # none | bayer2 | bayer4, on water band edges only
+dither_strength = 0.25
+palette_lock = "off"  # off | scene (koi exempt) | all
+caustics = 0.6        # caustic net strength
+caustic_scale = 1.2   # cell size multiplier; larger = coarser, calmer
+caustic_softness = 0.22
+glint = 1.0
+glint_threshold = 0.7
+highlight_style = "soft"   # soft (glint with halo) | dashes (1 art pixel strokes)
+bloom = 0.12          # halo around bright crests
+cloud_reflections = 0.14
+leaf_shadows = 0.7    # dapple strength under foliage
+wash = 0.0            # soft full-scene gradient under the koi, 0 = off
+wash_top = "#FFFFFF"
+wash_bottom = "#FFFFFF"
+anim_hz = 8           # ambient motion steps per second
+
+[scene]
+floor = "sand"        # sand | pebbles | moss | slate
+pebbles = 1.0         # density multiplier
+rim = "stones"        # stones | planks
+moss = 1.0            # moss on rim stones
+bank = "moss"         # moss | grass | gravel
+pad_size = 1.0
+flowers = 0.3         # share of pads with a flower; 0 = none
+flower = "lotus"      # lotus | water-lily
+foliage = ["top-left", "bottom-right"]   # corners; the first is the large one
+foliage_density = 1.0
+foliage_kind = "broadleaf"   # broadleaf | maple | cherry | pine | bamboo
+petals = 7
+petal_kinds = ["blossom", "white", "leaf"]   # blossom | white | leaf | maple; repeats weight the pick
+weather = "clear"     # clear | rain | mist | fireflies
+weather_amount = 0.0

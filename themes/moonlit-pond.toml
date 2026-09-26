@@ -1,0 +1,43 @@
+name = "Moonlit Pond"
+description = "Blue-violet moonlight, never black; white koi carry the scene, fireflies drift."
+family = "garden"
+time = "night"
+
+[palette]
+deep = "#1F3056"
+mid = "#2E4E78"
+shallow = "#4F7A98"
+highlight = "#CFE0F2"
+shadow = "#1B2244"
+stone_light = "#8E9AB4"
+stone_dark = "#3A4260"
+lily_dark = "#2A4A52"
+lily_light = "#577A6E"
+lily_flower = "#C8B8DE"
+koi_white = "#E4E8F0"
+koi_red = "#D6603F"
+koi_sumi = "#151827"
+ogon = "#E0B860"
+outline = "#C4D4EC"   # rim mode: the moonlit edge on the side facing the moon
+
+[light]
+sun = [-0.4, -0.9]
+warm = 0.1
+cool = 0.3
+ambient = 0.9
+
+[style]
+caustics = 0.12
+glint = 0.7
+glint_threshold = 0.8
+cloud_reflections = 0.0
+leaf_shadows = 0.3
+outline = "rim"
+grain = 0.03
+
+[scene]
+flower = "water-lily"
+flowers = 0.25
+petals = 0
+weather = "fireflies"
+weather_amount = 0.6

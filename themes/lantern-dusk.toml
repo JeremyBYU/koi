@@ -1,0 +1,49 @@
+name = "Lantern Dusk"
+description = "Eight colors of deep evening: dark blue water, dark pads, glowing flowers and koi, warm rims."
+extends = "pixel"
+family = "pixel-garden"
+time = "dusk"
+credit = "Palette: SLSO8 by Luis Miguel Maldonado, https://lospec.com/palette-list/slso8"
+
+[palette]
+deep = "#0D2B45"
+mid = "#203C56"
+shallow = "#203C56"
+highlight = "#FFD4A3"
+shadow = "#0D2B45"
+stone_light = "#8D697A"
+stone_dark = "#544E68"
+lily_dark = "#0D2B45"
+lily_light = "#203C56"
+lily_flower = "#FFAA5E"
+koi_white = "#FFECD6"
+koi_red = "#D08159"
+koi_sumi = "#544E68"
+ogon = "#FFAA5E"
+asagi_blue = "#8D697A"
+asagi_red = "#D08159"
+food = "#FFAA5E"
+outline = "#FFD4A3"
+swatches = ["#0d2b45", "#203c56", "#544e68", "#8d697a", "#d08159", "#ffaa5e", "#ffd4a3", "#ffecd6"]
+
+[light]
+sun = [-0.95, -0.3]
+shadow_len = 1.8
+ambient = 0.95
+
+[style]
+pixel_px = 6
+outline = "rim"
+palette_lock = "all"
+dither = "bayer4"
+caustics = 0.2
+cloud_reflections = 0.0
+
+[scene]
+floor = "moss"
+bank = "gravel"
+pebbles = 0.3
+flowers = 0.6
+weather = "fireflies"
+weather_amount = 0.4
+petals = 3

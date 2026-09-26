@@ -1,0 +1,41 @@
+name = "Pocket Moss"
+description = "Five soft greens like an old handheld screen; only the koi keep their color."
+extends = "pixel"
+
+[palette]
+deep = "#3B6150"
+mid = "#6A9366"
+shallow = "#A6C68A"
+highlight = "#E2EFC8"
+shadow = "#1F3530"
+stone_light = "#E2EFC8"
+stone_dark = "#3B6150"
+lily_dark = "#1F3530"
+lily_light = "#A6C68A"
+lily_flower = "#E2EFC8"
+koi_white = "#F6F4DC"
+koi_red = "#D8583C"
+koi_sumi = "#1F3530"
+ogon = "#EDC45A"
+outline = "#1F3530"
+swatches = ["#1f3530", "#3b6150", "#6a9366", "#a6c68a", "#e2efc8"]
+
+[light]
+warm = 0.0
+cool = 0.0
+
+[style]
+pixel_px = 5
+depth_bands = 2
+tone_steps = 2
+koi_tones = 2
+outline = "dark"
+dither = "bayer4"
+caustics = 0.4
+caustic_softness = 0.05
+cloud_reflections = 0.0
+
+[scene]
+flower = "water-lily"
+petals = 4
+petal_kinds = ["leaf"]

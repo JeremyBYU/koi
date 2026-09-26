@@ -1,0 +1,11 @@
+[package]
+name = "koi-render"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bytemuck.workspace = true
+koi-sim.workspace = true
+koi-theme.workspace = true
+pollster.workspace = true
+wgpu.workspace = true

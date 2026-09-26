@@ -1,0 +1,34 @@
+name = "Maple Afternoon"
+description = "Low autumn sun on clear teal water, olive pads, a few rust maple leaves drifting."
+
+[palette]
+deep = "#2C6886"
+mid = "#4A93A0"
+shallow = "#8FC6BC"
+highlight = "#FFE6B8"
+shadow = "#4E5A86"
+stone_light = "#E6D6B0"
+stone_dark = "#7A6E66"
+lily_dark = "#586E34"
+lily_light = "#A2AE5A"
+lily_flower = "#A5452C"
+koi_white = "#FAF2E4"
+koi_red = "#E4542E"
+koi_sumi = "#2A2428"
+ogon = "#F0B040"
+outline = "#2A2428"
+
+[light]
+sun = [-0.8, -0.55]
+warm = 0.3
+shadow_len = 1.3
+
+[style]
+outline = "dark"
+
+[scene]
+flowers = 0.1
+foliage_kind = "maple"
+foliage_density = 0.8
+petals = 7
+petal_kinds = ["maple", "maple", "leaf"]

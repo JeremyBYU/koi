@@ -1,0 +1,34 @@
+name = "Evening Garden"
+description = "Low golden sun, peach light, lavender shadows and long cast shadows over teal water."
+family = "garden"
+time = "evening"
+
+[palette]
+deep = "#4B5C8E"
+mid = "#5E8FA6"
+shallow = "#92C4BC"
+highlight = "#FFC98F"
+shadow = "#6B5A95"
+stone_light = "#DCC8B4"
+stone_dark = "#6E6484"
+lily_dark = "#466E4E"
+lily_light = "#9DB066"
+lily_flower = "#F7A0B2"
+koi_white = "#FBEADA"
+koi_red = "#F05E38"
+koi_sumi = "#2B2538"
+ogon = "#F6B04A"
+outline = "#2A2440"
+asagi_red = "#E8845A"
+food = "#C08A5A"
+
+[light]
+sun = [-0.9, -0.35]
+warm = 0.25
+cool = 0.25
+shadow_len = 1.7
+
+[style]
+outline = "dark"
+glint_threshold = 0.6
+cloud_reflections = 0.1
