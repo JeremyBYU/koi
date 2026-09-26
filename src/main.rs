@@ -3,13 +3,13 @@ mod hud;
 mod layers;
 mod state;
 
-use config::{Backend, Config, Show, Tmux};
+use config::{Backend, Config, Protocol, Show, Tmux};
 use koi_audio::{Audio, Event, Settings, Status};
 use koi_render::{Gpu, Poser, Water};
 use koi_sim::{DT, FoodKind, Pose, School};
-use koi_term::{self as term, Input};
+use koi_term::{self as term, Caps, Input};
 use koi_theme::{Catalog, ROOT, Rgb, Theme};
-use layers::{Grid, Layers};
+use layers::{Grid, Layers, Tier};
 use state::State;
 use std::collections::VecDeque;
 use std::io::{self, IsTerminal, Write};
@@ -21,14 +21,19 @@ use std::time::{Duration, Instant, SystemTime};
 /// The sharpest koi `fish_px = 0` gives on the CPU backend.
 const CPU_FISH_PX: usize = 10;
 
-const USAGE: &str = "usage: koi [--config PATH] [--theme NAME] [--backend gpu|cpu] [--list-themes] [--print-default-config] [--version] [-h | --help]";
+/// The frame rate a terminal that cannot keep up is brought down to, at the slowest.
+const FPS_FLOOR: u32 = 8;
 
-const HELP: &str = "A koi pond for terminals with the Kitty graphics protocol.
+const USAGE: &str = "usage: koi [--config PATH] [--theme NAME] [--backend gpu|cpu] [--protocol NAME] [--list-themes] [--print-default-config] [--version] [-h | --help]";
+
+const HELP: &str = "A koi pond for the terminal.
 
 Options:
   --config PATH             Read this config file instead of ~/.config/koi-pond/config.toml
   --theme NAME              Start in this theme
   --backend gpu|cpu         Render on the GPU (Vulkan or Metal) or the CPU, whatever the config says
+  --protocol NAME           Draw with auto (the best the terminal has), kitty, kitty-direct, sixel
+                            or blocks, whatever the config says
   --list-themes             List the themes
   --print-default-config    Print the full config with every key explained
   --version                 Print the version
@@ -48,13 +53,24 @@ Default keys (change them in the [input] section of the config):
   q, Ctrl-C     quit";
 
 fn main() -> ExitCode {
-    let (mut config_path, mut theme_arg, mut backend_arg) = (None, None, None);
+    let (mut config_path, mut theme_arg, mut backend_arg, mut protocol_arg) = (None, None, None, None);
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--config" | "--theme" | "--backend" => match args.next() {
+            "--config" | "--theme" | "--backend" | "--protocol" => match args.next() {
                 Some(value) if arg == "--config" => config_path = Some(PathBuf::from(value)),
                 Some(value) if arg == "--theme" => theme_arg = Some(value),
+                Some(value) if arg == "--protocol" => match value.as_str() {
+                    "auto" => protocol_arg = Some(Protocol::Auto),
+                    "kitty" => protocol_arg = Some(Protocol::Kitty),
+                    "kitty-direct" => protocol_arg = Some(Protocol::KittyDirect),
+                    "sixel" => protocol_arg = Some(Protocol::Sixel),
+                    "blocks" => protocol_arg = Some(Protocol::Blocks),
+                    _ => {
+                        eprintln!("koi: `--protocol` takes auto, kitty, kitty-direct, sixel or blocks, not `{value}`\n{USAGE}");
+                        return ExitCode::from(2);
+                    }
+                },
                 Some(value) => match value.as_str() {
                     "gpu" => backend_arg = Some(Backend::Gpu),
                     "cpu" => backend_arg = Some(Backend::Cpu),
@@ -124,23 +140,20 @@ fn main() -> ExitCode {
         Tmux::Off => false,
     }
     .then(|| u8::try_from(16 + std::process::id() % 240).expect("under 256"));
-    if tmux.is_some() && in_tmux {
+    if in_tmux {
         let mut query = std::process::Command::new("tmux");
         query.args(["display-message", "-p"]);
         if let Ok(pane) = std::env::var("TMUX_PANE") {
             query.args(["-t", &pane]);
         }
+        // Kitty graphics, and their answers to the probe, only get through with passthrough.
         if query.arg("#{allow-passthrough}").output().is_ok_and(|o| o.stdout.trim_ascii() == b"off") {
-            eprintln!("koi: tmux passthrough is off, so the pond would stay blank. Run `tmux set -g allow-passthrough on`, and add that line to your tmux config (~/.tmux.conf or ~/.config/tmux/tmux.conf) to keep it.");
-            return ExitCode::from(2);
+            warnings.push("tmux passthrough is off, so a terminal with Kitty graphics cannot show the pond in full. Run `tmux set -g allow-passthrough on`, and add that line to your tmux config (~/.tmux.conf or ~/.config/tmux/tmux.conf) to keep it".to_string());
         }
     }
-    if tmux.is_none()
-        && let Err(e) = term::probe_images(Duration::from_secs(2))
-    {
-        eprintln!("koi: {e}");
-        return ExitCode::from(2);
-    }
+    let reply = term::probe(Duration::from_secs(2), in_tmux);
+    let caps = Caps::parse(&reply, std::env::var("COLORTERM").ok().as_deref(), std::env::var_os("WT_SESSION").is_some());
+    let setting = protocol_arg.unwrap_or(cfg.render.protocol);
     let gpu = match backend_arg.unwrap_or(cfg.render.backend) {
         Backend::Gpu => match Gpu::new() {
             Ok(gpu) => Some(gpu),
@@ -164,7 +177,7 @@ fn main() -> ExitCode {
             normalize: cfg.audio.normalize,
         })
     });
-    let result = run(cfg, config_path.as_deref(), theme_arg, state, gpu.as_ref(), audio.as_ref(), tmux, &mut warnings);
+    let result = run(cfg, config_path.as_deref(), theme_arg, state, gpu.as_ref(), audio.as_ref(), (setting, caps, in_tmux), tmux, &mut warnings);
     if let Some(audio) = audio {
         audio.shutdown();
     }
@@ -189,13 +202,23 @@ struct Scene {
     before: Vec<Pose>,
 }
 
+/// The window's cell size in pixels: from the window size the terminal reports, else from
+/// its answer to `CSI 16 t`, else a guess.
+fn cell_px(caps: &Caps) -> (usize, usize) {
+    let (cols, rows, xpixel, ypixel) = term::winsize();
+    let (cols, rows) = (cols.max(1), rows.max(1));
+    if xpixel >= cols && ypixel >= rows { (xpixel / cols, ypixel / rows) } else { caps.cell_px.unwrap_or((10, 20)) }
+}
+
 /// Builds the pond for the current window size and appends the startup images to `out`.
 /// With `keep`, the koi and the waves of that scene carry over to `theme`'s grid, on the
 /// same window: a switch between a painted theme and a pixel theme, or between two pixel
-/// sizes, needs new water, koi sprites and layers, but the same pond. `tmux` is the image
-/// id of tmux mode.
-fn build(cfg: &Config, theme: &Theme, gpu: Option<&Gpu>, seed: u64, out: &mut Vec<u8>, keep: Option<Scene>, tmux: Option<u8>) -> io::Result<Scene> {
-    let water_px = cfg.render.water_px.max(1);
+/// sizes, needs new water, koi sprites and layers, but the same pond. `tier` sets how the
+/// grid's cells are sized, and `tmux` is the image id of tmux mode for the Kitty tiers.
+#[allow(clippy::too_many_arguments)]
+fn build(cfg: &Config, theme: &Theme, gpu: Option<&Gpu>, seed: u64, out: &mut Vec<u8>, keep: Option<Scene>, tier: Tier, tmux: Option<u8>, caps: &Caps) -> io::Result<Scene> {
+    // Half blocks give a cell two pixels, so the water is drawn at that size.
+    let water_px = if tier == Tier::Blocks { 1 } else { cfg.render.water_px.max(1) };
     // Posing on the CPU costs the square of `fish_px`, so a HiDPI window's own pixels would
     // not hold the frame rate there.
     let fish_px_for = |cell_w: usize| match (cfg.render.fish_px, gpu) {
@@ -206,21 +229,24 @@ fn build(cfg: &Config, theme: &Theme, gpu: Option<&Gpu>, seed: u64, out: &mut Ve
     let grid = match &keep {
         Some(scene) => scene.layers.grid.clone(),
         None => {
-            let (cols, rows, xpixel, ypixel) = term::winsize();
+            let (cols, rows, _, _) = term::winsize();
             let (cols, rows) = (cols.max(1), rows.max(1));
-            let (cell_w, cell_h) = if xpixel >= cols && ypixel >= rows { (xpixel / cols, ypixel / rows) } else { (10, 20) };
+            let (cell_w, cell_h) = cell_px(caps);
             // In tmux the whole window is one frame at the koi's resolution, `fish_px` to a
-            // cell width, which the terminal scales to its cells.
-            let (cell_w, cell_h) = match tmux {
-                Some(_) => (fish_px_for(cell_w), ((cell_h * fish_px_for(cell_w) + cell_w / 2) / cell_w).max(1)),
-                None => (cell_w, cell_h),
+            // cell width, which the terminal scales to its cells. Sixel frames are the
+            // terminal's own pixels, and half blocks two to a cell.
+            let (cell_w, cell_h) = match (tier, tmux) {
+                (Tier::Blocks, _) => (1, 2),
+                (Tier::Kitty | Tier::KittyDirect, Some(_)) => (fish_px_for(cell_w), ((cell_h * fish_px_for(cell_w) + cell_w / 2) / cell_w).max(1)),
+                _ => (cell_w, cell_h),
             };
             Grid { cols, rows, cell_w, cell_h, water_w: cols * water_px, water_h: ((rows * water_px * cell_h + cell_w / 2) / cell_w).max(3) }
         }
     };
     // The koi swim on the simulation grid. A painted theme renders the water on it too; a
-    // pixel theme renders it on the art grid, `pixel_px` screen pixels to an art pixel.
-    let pixel = theme.style.pixel_px as usize;
+    // pixel theme renders it on the art grid, `pixel_px` screen pixels to an art pixel. A
+    // half block is already coarser than an art pixel.
+    let pixel = if tier == Tier::Blocks { usize::from(theme.style.pixel_px > 0) } else { theme.style.pixel_px as usize };
     let (w, h) = if pixel > 0 { ((grid.cols * grid.cell_w).div_ceil(pixel), (grid.rows * grid.cell_h).div_ceil(pixel)) } else { (grid.water_w, grid.water_h) };
     let per_sim = [w as f32 / grid.water_w as f32, h as f32 / grid.water_h as f32];
     let ratio = water_px as f32 / 8.0 * per_sim[0];
@@ -238,10 +264,12 @@ fn build(cfg: &Config, theme: &Theme, gpu: Option<&Gpu>, seed: u64, out: &mut Ve
             (Water::new(gpu, w, h, per_sim, ratio, theme, seed), school, before)
         }
     };
-    let fish_px = fish_px_for(grid.cell_w);
+    // In a frame a sprite pixel is a frame pixel.
+    let framed = tmux.is_some() || matches!(tier, Tier::Sixel | Tier::Blocks);
+    let fish_px = if framed { grid.cell_w } else { fish_px_for(grid.cell_w) };
     let scale = if pixel > 0 { per_sim[0] } else { (grid.cols * grid.cell_w) as f32 / grid.water_w as f32 * fish_px as f32 / grid.cell_w as f32 };
     let poser = Poser::new(gpu, &school, theme, scale);
-    let layers = Layers::new(out, grid, &school, &poser, &theme.palette, fish_px, pixel, (w, h), tmux)?;
+    let layers = Layers::new(out, grid, &school, &poser, &theme.palette, fish_px, pixel, (w, h), tier, tmux, caps)?;
     Ok(Scene { water, school, poser, layers, before })
 }
 
@@ -270,9 +298,19 @@ fn stamps(paths: &[PathBuf]) -> Vec<Option<SystemTime>> {
     paths.iter().map(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok()).collect()
 }
 
-/// `tmux` is the image id of tmux mode.
+/// `terminal` is the protocol setting, what the terminal said it can do, and whether it runs
+/// in tmux. `tmux` is the image id of tmux mode.
 #[allow(clippy::too_many_arguments)]
-fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, mut state: State, gpu: Option<&Gpu>, audio: Option<&Audio>, tmux: Option<u8>, warnings: &mut Vec<String>) -> io::Result<()> {
+fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, mut state: State, gpu: Option<&Gpu>, audio: Option<&Audio>, terminal: (Protocol, Caps, bool), tmux: Option<u8>, warnings: &mut Vec<String>) -> io::Result<()> {
+    let (mut setting, mut caps, in_tmux) = terminal;
+    // Some terminals give the window's size as their largest sixel image, so a window made
+    // larger later is still measured against its size at the start.
+    let screen = {
+        let ((cols, rows, _, _), (cell_w, cell_h)) = (term::winsize(), cell_px(&caps));
+        (cols * cell_w, rows * cell_h)
+    };
+    let (mut tier, warning) = layers::choose(setting, &caps, in_tmux, screen);
+    warnings.extend(warning);
     let themes_dir = config::dir().map(|d| d.join("themes"));
     let config_file = config_path.map(Path::to_path_buf).or_else(|| config::dir().map(|d| d.join("config.toml")));
     let (mut catalog, found) = Catalog::load(themes_dir.as_deref());
@@ -293,7 +331,18 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
     let mut polled = Instant::now();
     let mut toast: Option<Toast> = None;
 
-    let _terminal = term::Terminal::enter(cfg.input.mouse, tmux)?;
+    // Only a Kitty terminal gets the command that deletes the images. tmux would take a bare
+    // one for a pane title.
+    let before_restore = match (tier, tmux) {
+        (Tier::Kitty | Tier::KittyDirect, None) => b"\x1b_Ga=d,d=A,q=2\x1b\\".to_vec(),
+        (Tier::Kitty | Tier::KittyDirect, Some(id)) => {
+            let mut bytes = Vec::new();
+            term::tmux_wrap(&mut bytes, format!("\x1b_Ga=d,d=I,i={id},q=2\x1b\\").as_bytes());
+            bytes
+        }
+        (Tier::Sixel | Tier::Blocks, _) => Vec::new(),
+    };
+    let _terminal = term::Terminal::enter(cfg.input.mouse, before_restore)?;
     if cfg.input.mouse && cfg.hud.hover {
         term::report_motion();
     }
@@ -305,7 +354,7 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
     // Read before the build so a resize during it is caught by the next frame.
     let mut size = term::winsize();
     let mut out = Vec::new();
-    let mut scene = build(&cfg, &theme, gpu, seed, &mut out, None, tmux)?;
+    let mut scene = build(&cfg, &theme, gpu, seed, &mut out, None, tier, tmux, &caps)?;
     stdout.write_all(&out)?;
     stdout.flush()?;
     let mut hud = hud::Hud::new(&cfg, &scene.layers.grid, &theme, &catalog, state.volume.unwrap_or(cfg.audio.volume), state.muted, Instant::now());
@@ -328,6 +377,12 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
     let (mut frames, mut sent, mut sent_bytes) = (0u32, 0u32, 0usize);
     let (mut fps, mut sent_fps, mut bytes_per_frame, mut shm_rate, mut pose_rate) = (0.0, 0.0, 0, 0.0, 0.0);
     let (mut stats_since, mut shm_mark, mut pose_mark) = (started, 0, 0);
+    // A terminal slower to take a frame than the frame interval brings the rate down to
+    // `ceiling`, which climbs back slowly. Kitty errors and a long stay at the floor switch
+    // to the next tier.
+    let (mut ceiling, mut raised, mut slow_since) = (cfg.fps.focused.max(FPS_FLOOR), started, None::<Instant>);
+    let mut errors = 0;
+    let mut degrade: Option<String> = None;
 
     loop {
         let now = Instant::now();
@@ -338,7 +393,9 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
         let hud_fading = hud.settings.show != Show::Hidden && hud.fading(now);
         let petting = scene.school.fish.iter().any(|f| f.pose().joy > 0.05);
         let reason = [(focused, "focused"), (food_in_water, "food"), (recent_input, "input"), (ripples, "ripples"), (darting, "darting"), (petting, "petting"), (hud_fading, "hud")].iter().find(|r| r.0).map_or("calm", |r| r.1);
-        let target = if reason == "calm" { cfg.fps.unfocused_calm } else { cfg.fps.focused }.max(1);
+        let wanted = if reason == "calm" { cfg.fps.unfocused_calm } else { cfg.fps.focused }.min(tier.fps_cap(theme.style.pixel_px > 0));
+        let reason = if ceiling < wanted { "slow terminal" } else { reason };
+        let target = wanted.min(ceiling).max(1);
         let interval = Duration::from_secs_f64(1.0 / f64::from(target));
         let due = last_present + interval;
 
@@ -428,7 +485,7 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
                 }
                 Input::Key(3) => return Ok(()),
                 // Ctrl-L redraws, as in a shell.
-                Input::Key(12) if tmux.is_some() => {
+                Input::Key(12) => {
                     scene.layers.redraw();
                     hud.forget_text();
                 }
@@ -457,6 +514,12 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
                         show_stats = !show_stats;
                     } else if key == cfg.input.reload {
                         reload = true;
+                    }
+                }
+                Input::Graphics { ok } => {
+                    errors = if ok { 0 } else { errors + 1 };
+                    if errors >= 3 && matches!(tier, Tier::Kitty | Tier::KittyDirect) {
+                        degrade = Some(format!("the terminal refused {} images", tier.name()));
                     }
                 }
                 Input::Scroll { .. } | Input::Move { .. } | Input::Drag { .. } | Input::Release { .. } | Input::Escape | Input::Other => {}
@@ -504,7 +567,7 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
                         scene.poser.recolor(&scene.school, &next);
                         scene.layers.recolor(&mut out, &next.palette)?;
                     } else {
-                        scene = build(&cfg, &next, gpu, seed, &mut out, Some(scene), tmux)?;
+                        scene = build(&cfg, &next, gpu, seed, &mut out, Some(scene), tier, tmux, &caps)?;
                         // New layers write the placeholder cells again, over the HUD's text.
                         hud.forget_text();
                         (shm_mark, pose_mark) = (0, 0);
@@ -536,18 +599,34 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
             continue;
         }
 
-        // A resize keeps the seed, so the pond keeps its layout.
+        // A resize keeps the seed, so the pond keeps its layout. It chooses the tier again, as
+        // does a tier that failed, without the capability that failed.
         let new_size = term::winsize();
-        if new_size != size {
+        if new_size != size || degrade.is_some() {
             size = new_size;
             out.clear();
-            // In tmux the new frame replaces the image, and a bare Kitty command would set the
-            // pane title.
-            if tmux.is_none() {
+            // Only layered Kitty images need deleting. In tmux the new frame replaces the image,
+            // and a bare Kitty command would set the pane title.
+            if matches!(tier, Tier::Kitty | Tier::KittyDirect) && tmux.is_none() {
                 out.extend_from_slice(b"\x1b_Ga=d,d=A,q=2\x1b\\");
             }
             out.extend_from_slice(b"\x1b[2J");
-            scene = build(&cfg, &theme, gpu, seed, &mut out, None, tmux)?;
+            let failed = tier;
+            if degrade.is_some() {
+                match tier {
+                    Tier::Kitty => caps.kitty_shm = false,
+                    Tier::KittyDirect => caps.kitty_direct = false,
+                    Tier::Sixel => caps.sixel = None,
+                    Tier::Blocks => {}
+                }
+                setting = Protocol::Auto;
+            }
+            tier = layers::choose(setting, &caps, in_tmux, screen).0;
+            if let Some(why) = degrade.take() {
+                toast = Some(Toast::new(format!("{why}, so koi switched from {} to {}", failed.name(), tier.name()), true));
+            }
+            (ceiling, slow_since, errors) = (cfg.fps.focused.max(FPS_FLOOR), None, 0);
+            scene = build(&cfg, &theme, gpu, seed, &mut out, None, tier, tmux, &caps)?;
             hud.resize(&scene.layers.grid, &theme);
             stdout.write_all(&out)?;
             last_water = None;
@@ -603,11 +682,16 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
         let shown = toast.as_ref().filter(|t| now < t.until);
         let text = if show_stats {
             let backend = gpu.map_or("cpu".to_string(), |g| format!("gpu {}", g.adapter));
+            let protocol = match (tier, tmux) {
+                (Tier::Kitty | Tier::KittyDirect, Some(_)) => format!("{} in tmux", tier.name()),
+                _ => tier.name().to_string(),
+            };
+            let terminal = caps.name.as_ref().map_or(String::new(), |name| format!(" ({name})"));
             let music = if no_music.is_empty() { String::new() } else { format!(" | {no_music}") };
             // The most useful fields first, since a narrow window cuts the line.
             Some((
                 format!(
-                    " {} | {backend}{music} | {fps:.1} fps, {sent_fps:.1} sent | target {target} ({reason}) | {} | build p50 {:.2}ms p99 {:.2}ms | {bytes_per_frame} B/frame | shm {shm_rate:.1} MB/s | poses {pose_rate:.0}/s | water {}x{}",
+                    " {} | {protocol}{terminal} | {backend}{music} | {fps:.1} fps, {sent_fps:.1} sent | target {target} ({reason}) | {} | build p50 {:.2}ms p99 {:.2}ms | {bytes_per_frame} B/frame | shm {shm_rate:.1} MB/s | poses {pose_rate:.0}/s | water {}x{}",
                     theme.summary.id,
                     if focused { "focused" } else { "unfocused" },
                     percentile(&build_ms, 0.5),
@@ -624,6 +708,7 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
             warnings.first().filter(|_| now - started < Duration::from_secs(10)).map(|first| (format!(" {first} (details on exit)"), palette.deep, palette.ui_text))
         };
         // One line only: a wrapped second line would not be cleared by the next update.
+        let overlay_cells = text.as_ref().map(|(t, ..)| t.chars().take(scene.layers.grid.cols.saturating_sub(1)).count() + 1);
         let overlay = text.map(|(t, [br, bg, bb], [fr, fg, fb]): (String, Rgb, Rgb)| {
             format!("\x1b[48;2;{br};{bg};{bb}m\x1b[38;2;{fr};{fg};{fb}m{} \x1b[0m", t.chars().take(scene.layers.grid.cols.saturating_sub(1)).collect::<String>())
         });
@@ -641,28 +726,47 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
         out.clear();
         out.extend_from_slice(b"\x1b[?2026h");
         let header = out.len();
-        match tmux {
-            Some(id) => {
-                if let Some(frame) = scene.layers.compose(&mut out, &scene.school, &poses, &mut scene.poser, water.map(|rgba| (rgba, w, h)))
-                    && hud.settings.show != Show::Hidden
-                {
-                    hud.compose(frame, &mut out, id, now);
+        let hud_shown = hud.settings.show != Show::Hidden;
+        let framed = match scene.layers.compose(&mut out, &scene.school, &poses, &mut scene.poser, water.map(|rgba| (rgba, w, h))) {
+            Some(frame) => {
+                if hud_shown {
+                    hud.compose(frame, &mut out, now);
                 }
-                scene.layers.send(&mut out, overlay.as_deref())?;
+                true
             }
-            None => {
-                scene.layers.encode(&mut out, &scene.school, &poses, &mut scene.poser, water.map(|rgba| (rgba, w, h)), overlay.as_deref(), cfg.fps.send_when_unchanged)?;
-                if hud.settings.show != Show::Hidden {
-                    hud.draw(&mut out, &mut scene.layers.ring, now)?;
-                }
+            None => false,
+        };
+        if framed {
+            let mut cells = if hud_shown { hud.cells() } else { Vec::new() };
+            cells.extend(overlay_cells.map(|n| (1, 1, n)));
+            scene.layers.send(&mut out, overlay.as_deref(), &cells)?;
+        } else {
+            scene.layers.encode(&mut out, &scene.school, &poses, &mut scene.poser, water.map(|rgba| (rgba, w, h)), overlay.as_deref(), cfg.fps.send_when_unchanged)?;
+            if hud_shown {
+                hud.draw(&mut out, &mut scene.layers.ring, now)?;
             }
         }
         if out.len() > header {
             out.extend_from_slice(b"\x1b[?2026l");
+            let writing = Instant::now();
             stdout.write_all(&out)?;
             stdout.flush()?;
+            if writing.elapsed() > interval {
+                ceiling = (ceiling / 2).max(FPS_FLOOR);
+                raised = now;
+                slow_since.get_or_insert(now);
+            } else {
+                slow_since = None;
+            }
             sent += 1;
             sent_bytes += out.len();
+        }
+        if now - raised >= Duration::from_secs(2) {
+            ceiling = (ceiling + ceiling / 4 + 1).min(cfg.fps.focused.max(FPS_FLOOR));
+            raised = now;
+        }
+        if ceiling == FPS_FLOOR && slow_since.is_some_and(|since| now - since >= Duration::from_secs(5)) && matches!(tier, Tier::Sixel | Tier::KittyDirect) {
+            degrade = Some("the terminal could not keep up".to_string());
         }
 
         build_ms.push_back(frame_start.elapsed().as_secs_f32() * 1000.0);

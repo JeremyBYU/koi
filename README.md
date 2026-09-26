@@ -4,7 +4,7 @@ A quiet koi pond for your terminal.
 
 Five koi drift, glide and turn lazily over a painted garden pond. Drop food and they gather to eat. Reach into the water and one comes over to nuzzle your hand. There is no score, no goal and nothing to lose. Soft music plays, the water ripples where things land, and the light moves from dawn to night if you want it to.
 
-koi draws with the Kitty graphics protocol, so the pond is real images, not text characters.
+In a terminal with the Kitty graphics protocol, such as Ghostty or Kitty, the pond is real images, not text characters. Other terminals get sixel images or coloured text blocks (see [Terminals](#terminals)).
 
 ![Summer Garden: koi gather around a treat in the middle of the pond, with the HUD stones along the bottom](docs/img/summer-garden.jpg)
 
@@ -12,7 +12,7 @@ koi draws with the Kitty graphics protocol, so the pond is real images, not text
 
 ## Install
 
-koi runs on Linux and macOS in a terminal with the Kitty graphics protocol, such as [Ghostty](https://ghostty.org) or [Kitty](https://sw.kovidgoyal.net/kitty/).
+koi runs on Linux and macOS in any terminal. It looks best in one with the Kitty graphics protocol, such as [Ghostty](https://ghostty.org) or [Kitty](https://sw.kovidgoyal.net/kitty/).
 
 Download the archive for your system from the [latest release](https://github.com/JeremyBYU/koi/releases/latest), unpack it and run `koi`:
 
@@ -31,8 +31,6 @@ The binary is one file of about 14 MB with three pieces of music built in. Put i
 
 - On Linux it needs glibc 2.17 or newer and `libasound.so.2`, which every desktop has.
 - On macOS the binary is not signed. If you downloaded the archive with a browser, clear the quarantine flag once: `xattr -d com.apple.quarantine koi`.
-
-If your terminal can't show the images, koi says so and exits. That includes a terminal without the Kitty protocol, and any terminal over SSH, since the images travel through shared memory on the same machine.
 
 ### More music
 
@@ -161,6 +159,21 @@ volume = 0.4
 
 A bad value never stops the game: it shows as a warning naming the file and key, and the default is used. Most changes apply while koi runs. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#config-keys) has a table of every key.
 
+## Terminals
+
+At start koi asks the terminal what it can draw and picks the best way it has. Press `d` to see which one it picked on the stats line.
+
+| Protocol | Terminals | Frames per second | What you see |
+|---|---|---|---|
+| `kitty` | Ghostty, Kitty | up to 60 | The full pond. The koi, water and food are separate images, sent through shared memory. |
+| `kitty-direct` | Ghostty or Kitty over SSH | up to 30 | The same pond, with the images compressed and sent inline, since shared memory does not reach the other machine. |
+| `sixel` | xterm, foot, mlterm, WezTerm | up to 20, 30 in a pixel theme | The full pond as one image, redrawn where it changed, in 256 colours. The bottom row is plain coloured cells. |
+| `blocks` | any other terminal, such as GNOME Terminal | up to 60 | The pond at two pixels per character cell, drawn with coloured half-block characters. |
+
+WezTerm answers the Kitty queries, but it falls behind and garbles the koi, so koi uses sixel there. xterm has sixel only when started as a VT340 with enough colours, such as `xterm -ti vt340 -xrm 'XTerm*numColorRegisters: 256'`. A terminal that answers nothing gets blocks after 2 seconds.
+
+`koi --protocol NAME` picks one for a run, whatever the config says, and `render.protocol` in the config picks one for good. A protocol the terminal did not say it has is still tried, with a warning. If the terminal keeps refusing Kitty images, or cannot keep up with sixel or inline images, koi switches to the next protocol and says so on the top line.
+
 ## tmux
 
 koi runs inside tmux 3.3 or newer when tmux passes images through to the terminal. Add this line to your tmux config (`~/.tmux.conf` or `~/.config/tmux/tmux.conf`), and run it once as `tmux set -g allow-passthrough on` for the server that is already running:
@@ -169,11 +182,11 @@ koi runs inside tmux 3.3 or newer when tmux passes images through to the termina
 set -g allow-passthrough on
 ```
 
-The pond then stays in its pane through splits and window switches. Without the setting, koi prints the line above and exits. Inside tmux each frame is one image of the whole pane, so it costs more than running directly in the terminal. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#tmux) explains how it works.
+The pond then stays in its pane through splits and window switches. Without the setting, the Kitty images never reach the terminal, so koi draws with blocks and shows a warning with the line above. Inside tmux each frame is one image of the whole pane, so it costs more than running directly in the terminal. koi does not use sixel inside tmux, and draws with blocks when the terminal outside has no Kitty graphics. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#tmux) explains how it works.
 
 ## How it works
 
-Each frame, koi steps the simulation at a fixed 60 Hz, renders the water into one low-resolution image and poses each koi into its own small sharp image, placed to the screen pixel. The images go to the terminal through shared memory, so the tty carries only short escape codes, and only images that changed are sent. The water and koi shaders run on the GPU with wgpu, and the CPU path does the same math. A test holds the two within 2/255 per channel.
+Each frame, koi steps the simulation at a fixed 60 Hz, renders the water into one low-resolution image and poses each koi into its own small sharp image, placed to the screen pixel. With the Kitty protocol the images go to the terminal through shared memory, so the tty carries only short escape codes, and only images that changed are sent. The water and koi shaders run on the GPU with wgpu, and the CPU path does the same math. A test holds the two within 2/255 per channel.
 
 The frame rate adapts: up to 60 frames a second while the window is focused or something is happening, and 8 when it is in the background and calm. Most of the cost of a smooth pond is the terminal drawing it, not koi. [docs/PERFORMANCE.md](docs/PERFORMANCE.md) has the measurements.
 
@@ -182,7 +195,7 @@ The frame rate adapts: up to 60 frames a second while the window is focused or s
 | `koi-sim` | The koi and the food: steering, moods, feeding and petting. No GPU, terminal or audio code. |
 | `koi-theme` | Reads themes, resolves `extends` and steps through scenes and times. |
 | `koi-render` | Renders the water and the koi on the GPU or the CPU, and paints food sprites and HUD stones. |
-| `koi-term` | Raw mode, input parsing and sending images through shared memory. |
+| `koi-term` | Raw mode, asking the terminal what it can draw, input parsing and sending Kitty images through shared memory or inline. |
 | `koi-audio` | Music with crossfades, a generated ambient layer and the chimes. |
 | `koi-pond` (`src/`) | The `koi` binary: the frame loop, config, HUD and image layers. |
 

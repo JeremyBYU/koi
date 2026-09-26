@@ -415,7 +415,7 @@ impl Hud {
                 (self.pointer, self.hover, self.dwell) = (None, None, None);
                 Reply::Pass
             }
-            Input::Move { .. } | Input::Release { .. } | Input::Drag { .. } | Input::Focus(true) | Input::Other => Reply::Pass,
+            Input::Move { .. } | Input::Release { .. } | Input::Drag { .. } | Input::Focus(true) | Input::Graphics { .. } | Input::Other => Reply::Pass,
         };
         // Start the fades now, not at the next frame.
         self.tick(now);
@@ -907,12 +907,12 @@ impl Hud {
         Ok(())
     }
 
-    /// tmux mode: draws what shows into `frame`, the window's image at the cell size the HUD
-    /// was given, and appends to `out` the text if it or what lies under it changed. Text
-    /// takes the place of the placeholder cells of image `id`, so each span gets the average
-    /// colour of the frame under it as its background, and cells it leaves get their
-    /// placeholders back.
-    pub fn compose(&mut self, frame: &mut [u8], out: &mut Vec<u8>, id: u8, now: Instant) {
+    /// With a frame (`Layers::compose`): draws what shows into `frame`, the window's image at
+    /// the cell size the HUD was given, and appends to `out` the text if it or what lies under
+    /// it changed. Text takes the place of the frame in its cells, so each span gets the
+    /// average colour of the frame under it as its background. `Layers::send` draws the frame
+    /// again in the cells it leaves, as `cells` tells it.
+    pub fn compose(&mut self, frame: &mut [u8], out: &mut Vec<u8>, now: Instant) {
         self.tick(now);
         let rects = self.rects();
         let (cw, ch) = (self.cell_w, self.cell_h);
@@ -949,13 +949,15 @@ impl Hud {
         if spans == self.text && backs == self.backs {
             return;
         }
-        for (col, row, text, _) in &self.text {
-            koi_term::placeholders(out, id, row - 1, col - 1, text.chars().count());
-        }
         for ((col, row, text, [r, g, b]), [br, bg, bb]) in spans.iter().zip(&backs) {
             out.extend_from_slice(format!("\x1b[{row};{col}H\x1b[48;2;{br};{bg};{bb}m\x1b[38;2;{r};{g};{b}m{text}\x1b[0m").as_bytes());
         }
         (self.text, self.backs) = (spans, backs);
+    }
+
+    /// The cells the HUD's text is in, as (1-based column, 1-based row, width).
+    pub fn cells(&self) -> Vec<(usize, usize, usize)> {
+        self.text.iter().map(|(col, row, text, _)| (*col, *row, text.chars().count())).collect()
     }
 }
 

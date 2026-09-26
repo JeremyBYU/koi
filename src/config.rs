@@ -25,6 +25,13 @@ dart_speed = 1.6
 send_when_unchanged = false
 
 [render]
+# How the pond reaches the terminal. "auto" asks the terminal and picks the best it has:
+# "kitty" (Kitty graphics through shared memory: Ghostty, Kitty), "kitty-direct" (Kitty
+# graphics sent inline, which also work over SSH), "sixel" (xterm, foot, mlterm, WezTerm),
+# or "blocks" (coloured half-block characters, which any terminal shows). A name forces
+# that one even if the terminal did not say it has it.
+# koi --protocol NAME overrides this for one run.
+protocol = "auto"
 # "gpu" renders with wgpu on Vulkan. It falls back to "cpu" when no GPU adapter is found.
 backend = "gpu"
 # Water image pixels per cell width. The terminal scales the water up to the window.
@@ -35,8 +42,8 @@ water_px = 2
 fish_px = 0
 # Most water images sent per second. The koi still move at the full frame rate.
 water_fps = 30
-# Inside tmux the pond is drawn as one image per frame, shown through placeholder cells so
-# it stays in its pane. tmux must have "set -g allow-passthrough on". fish_px sets the
+# Inside tmux, with Kitty graphics, the pond is drawn as one image per frame, shown through
+# placeholder cells so it stays in its pane. tmux must have "set -g allow-passthrough on". fish_px sets the
 # frame's size there too, so 8 is lighter on a HiDPI screen. "auto" does this when $TMUX is
 # set, "on" always, "off" never.
 tmux = "auto"
@@ -151,8 +158,19 @@ pub enum Backend {
     Cpu,
 }
 
+#[derive(Deserialize, Clone, Copy, PartialEq, Debug)]
+#[serde(rename_all = "kebab-case")]
+pub enum Protocol {
+    Auto,
+    Kitty,
+    KittyDirect,
+    Sixel,
+    Blocks,
+}
+
 #[derive(Deserialize)]
 pub struct Render {
+    pub protocol: Protocol,
     pub backend: Backend,
     pub water_px: usize,
     pub fish_px: usize,
@@ -341,7 +359,7 @@ mod tests {
     #[test]
     fn bad_values_warn_and_keep_the_default() {
         let path = std::env::temp_dir().join(format!("koi-config-test-{}.toml", std::process::id()));
-        let text = "bogus = 1\nhud = 3\n[fps]\nfocused = \"fast\"\nripple_secs = 5\ninput_secs = -1\nfrom = 2\n[render]\nbackend = \"vulkan\"\n[pond]\nkoi = -1\n[audio]\nambient_volume = 3\n[input]\nfeed = \"ff\"\nquit = \"é\"\nfood = [\"1\", \"2\"]\nstats = \"x\"\n";
+        let text = "bogus = 1\nhud = 3\n[fps]\nfocused = \"fast\"\nripple_secs = 5\ninput_secs = -1\nfrom = 2\n[render]\nbackend = \"vulkan\"\nprotocol = \"iterm\"\n[pond]\nkoi = -1\n[audio]\nambient_volume = 3\n[input]\nfeed = \"ff\"\nquit = \"é\"\nfood = [\"1\", \"2\"]\nstats = \"x\"\n";
         std::fs::write(&path, text).expect("write temp config");
         let loaded = load(Some(&path));
         std::fs::remove_file(&path).expect("remove temp config");
@@ -352,6 +370,6 @@ mod tests {
         assert_eq!((config.input.feed, config.input.quit, config.input.food, config.input.stats), ('f', 'q', ['1', '2', '3', '4', '5'], 'x'));
         assert!(!config.audio.music_dir.as_os_str().is_empty());
         let keys: Vec<&str> = warnings.iter().map(|w| w.strip_prefix(&format!("{}: `", path.display())).and_then(|w| w.split('`').next()).expect("names the file and key")).collect();
-        assert_eq!(keys, ["audio.ambient_volume", "bogus", "fps.focused", "fps.from", "fps.input_secs", "hud", "input.feed", "input.food", "input.quit", "pond.koi", "render.backend"]);
+        assert_eq!(keys, ["audio.ambient_volume", "bogus", "fps.focused", "fps.from", "fps.input_secs", "hud", "input.feed", "input.food", "input.quit", "pond.koi", "render.backend", "render.protocol"]);
     }
 }

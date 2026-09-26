@@ -1,6 +1,8 @@
-//! The terminal side: raw mode and its restore, reading and parsing input, sending images over
-//! the Kitty graphics protocol through a ring of shared-memory files, and inside tmux, the
-//! passthrough wrapping and Unicode placeholder cells that let an image show in a pane.
+//! The terminal side: raw mode and its restore, asking the terminal what it can draw, reading
+//! and parsing input, sending images over the Kitty graphics protocol through a ring of
+//! shared-memory files (or inline, zlib-compressed, where shared memory cannot reach), and
+//! inside tmux, the passthrough wrapping and Unicode placeholder cells that let an image show
+//! in a pane.
 
 #![warn(missing_docs)]
 
@@ -17,7 +19,7 @@ use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::time::Duration;
 
 /// Set by SIGINT, SIGTERM and SIGHUP. The frame loop exits through the normal cleanup.
@@ -28,8 +30,8 @@ static ORIGINAL: OnceLock<libc::termios> = OnceLock::new();
 /// A copy of the real stderr while it points at /dev/null. -1 when it is not redirected.
 static STDERR: AtomicI32 = AtomicI32::new(-1);
 
-/// The image shown through placeholder cells in tmux, deleted on restore. 0 outside tmux.
-static TMUX_IMAGE: AtomicU32 = AtomicU32::new(0);
+/// What the restore writes before leaving the alternate screen, such as deleting the images.
+static RESTORE: OnceLock<Vec<u8>> = OnceLock::new();
 
 /// Numbers each ring, so a new ring built on resize never shares a name with the one it replaces.
 static RINGS: AtomicU64 = AtomicU64::new(0);
@@ -48,16 +50,16 @@ pub struct Terminal;
 impl Terminal {
     /// Puts the terminal in raw mode on the alternate screen with focus reporting, and SGR
     /// mouse reporting of presses, releases and drags if `mouse`. Installs the signal handlers that set `QUIT` and a panic
-    /// hook that restores the terminal when the calling thread panics. `tmux_image` is the
-    /// image a tmux pane shows through placeholder cells, which the restore deletes. Fails if
-    /// stdin is not a terminal.
-    pub fn enter(mouse: bool, tmux_image: Option<u8>) -> io::Result<Terminal> {
+    /// hook that restores the terminal when the calling thread panics. The restore writes
+    /// `before_restore` first, to delete what only the pond's protocol knows about (Kitty images, say),
+    /// so a terminal without that protocol never sees it. Fails if stdin is not a terminal.
+    pub fn enter(mouse: bool, before_restore: Vec<u8>) -> io::Result<Terminal> {
         let mut original: libc::termios = unsafe { std::mem::zeroed() };
         if unsafe { libc::tcgetattr(0, &mut original) } != 0 {
             return Err(io::Error::other(format!("stdin is not a terminal ({})", io::Error::last_os_error())));
         }
         let _ = ORIGINAL.set(original);
-        TMUX_IMAGE.store(tmux_image.map_or(0, u32::from), Ordering::Relaxed);
+        let _ = RESTORE.set(before_restore);
         let mut raw = original;
         unsafe {
             libc::cfmakeraw(&mut raw);
@@ -117,14 +119,7 @@ fn write_fd(mut bytes: &[u8]) {
 }
 
 fn restore() {
-    // tmux would take a bare Kitty command for a pane title.
-    let tmux_image = TMUX_IMAGE.load(Ordering::Relaxed);
-    let mut bytes = Vec::new();
-    if tmux_image == 0 {
-        bytes.extend_from_slice(b"\x1b_Ga=d,d=A,q=2\x1b\\");
-    } else {
-        tmux_wrap(&mut bytes, format!("\x1b_Ga=d,d=I,i={tmux_image},q=2\x1b\\").as_bytes());
-    }
+    let mut bytes = RESTORE.get().cloned().unwrap_or_default();
     bytes.extend_from_slice(b"\x1b[?2026l\x1b[?1004l\x1b[?1003l\x1b[?1002l\x1b[?1006l\x1b[?1000l\x1b[0m\x1b[?25h\x1b[?1049l");
     write_fd(&bytes);
     let stderr = STDERR.swap(-1, Ordering::Relaxed);
@@ -209,43 +204,131 @@ pub fn placeholders(out: &mut Vec<u8>, id: u8, row: usize, col: usize, n: usize)
     out.extend_from_slice(b"\x1b[39m");
 }
 
-/// Asks the terminal whether it can show a Kitty image sent through shared memory, as the
-/// pond's are. A 1x1 image query goes out with a device attributes request after it, which
-/// every terminal answers, so a terminal without Kitty graphics answers only the second.
-/// Errors name what is missing. A terminal that answers neither within `timeout` passes.
-pub fn probe_images(timeout: Duration) -> Result<(), String> {
-    let name = format!("/{SHM_PREFIX}{}-probe", std::process::id());
-    write_shm(&name, &[0; 4]).map_err(|e| format!("cannot create shared memory ({e})"))?;
+/// Asks the terminal what it can draw, in one write: a Kitty image read from shared memory
+/// (id 31, only if a shm object can be made), a Kitty image sent inline (id 32), the sixel
+/// colour registers and largest image (XTSMGRAPHICS), the cell size in pixels (`CSI 16 t`)
+/// and the terminal's name (XTVERSION), then the device attributes, which every terminal
+/// answers after the others, so they end the wait. In tmux (`tmux`) the Kitty queries go
+/// through the passthrough to the terminal outside, whose answers come after tmux's own
+/// device attributes, so the wait goes on a little for them. Returns what came back within
+/// `timeout`, for `Caps::parse`: nothing at all from a terminal that answers nothing.
+pub fn probe(timeout: Duration, tmux: bool) -> Vec<u8> {
     let mut original: libc::termios = unsafe { std::mem::zeroed() };
     if unsafe { libc::tcgetattr(0, &mut original) } != 0 {
-        unlink(&name);
-        return Err(format!("stdin is not a terminal ({})", io::Error::last_os_error()));
+        return Vec::new();
     }
+    let name = format!("/{SHM_PREFIX}{}-probe", std::process::id());
+    let shm = write_shm(&name, &[0; 4]).is_ok();
+    let mut kitty = Vec::new();
+    if shm {
+        kitty.extend_from_slice(format!("\x1b_Gi=31,a=q,t=s,f=32,s=1,v=1,S=4;{}\x1b\\", B64.encode(&name)).as_bytes());
+    }
+    kitty.extend_from_slice(b"\x1b_Gi=32,a=q,t=d,f=32,s=1,v=1;AAAAAA==\x1b\\");
+    let mut query = Vec::new();
+    if tmux {
+        tmux_wrap(&mut query, &kitty);
+    } else {
+        query.extend_from_slice(&kitty);
+    }
+    query.extend_from_slice(b"\x1b[?1;1;0S\x1b[?2;4;0S\x1b[16t\x1b[>0q\x1b[c");
+
     let mut raw = original;
     unsafe {
         libc::cfmakeraw(&mut raw);
         libc::tcsetattr(0, libc::TCSANOW, &raw);
     }
-    write_fd(format!("\x1b_Gi=31,a=q,t=s,f=32,s=1,v=1,S=4;{}\x1b\\\x1b[c", B64.encode(&name)).as_bytes());
-    let deadline = std::time::Instant::now() + timeout;
+    write_fd(&query);
+    let start = std::time::Instant::now();
+    let mut attributes: Option<std::time::Instant> = None;
     let mut reply = Vec::new();
-    // The device attributes answer ends in `c` and comes last.
-    while !(reply.windows(3).any(|w| w == b"\x1b[?") && reply.ends_with(b"c")) {
-        let left = deadline.saturating_duration_since(std::time::Instant::now());
-        if left.is_zero() {
+    loop {
+        let text = String::from_utf8_lossy(&reply);
+        // The device attributes answer, `CSI ? ... c`, comes last.
+        if attributes.is_none() && text.split('\x1b').any(|s| s.starts_with("[?") && s.ends_with('c')) {
+            attributes = Some(std::time::Instant::now());
+        }
+        let kitty_done = (!shm || text.contains("\x1b_Gi=31;")) && text.contains("\x1b_Gi=32;");
+        let done = attributes.is_some_and(|at| !tmux || kitty_done || at.elapsed() >= Duration::from_millis(300));
+        let left = timeout.saturating_sub(start.elapsed());
+        if done || left.is_zero() {
             break;
         }
-        reply.extend(read_input(left));
+        reply.extend(read_input(if tmux && attributes.is_some() { left.min(Duration::from_millis(50)) } else { left }));
     }
     unsafe { libc::tcsetattr(0, libc::TCSANOW, &original) };
     // Only a terminal that did not read the file leaves it behind.
-    unlink(&name);
-    let reply = String::from_utf8_lossy(&reply);
-    match reply.split_once("\x1b_Gi=31;").and_then(|(_, rest)| rest.split_once("\x1b\\")) {
-        Some(("OK", _)) => Ok(()),
-        Some((error, _)) => Err(format!("the terminal cannot read images from shared memory ({error}). koi needs a local terminal with the Kitty graphics protocol, such as Ghostty or Kitty, not one over SSH")),
-        None if reply.contains("\x1b[?") => Err("this terminal does not support the Kitty graphics protocol. koi needs one that does, such as Ghostty or Kitty".to_string()),
-        None => Ok(()),
+    if shm {
+        unlink(&name);
+    }
+    reply
+}
+
+/// What the terminal can draw, from its answers to `probe`.
+#[derive(Debug, Default, PartialEq)]
+pub struct Caps {
+    /// Kitty graphics read from shared memory (`t=s`), the pond's usual way.
+    pub kitty_shm: bool,
+    /// Kitty graphics sent inline (`t=d`), which also work over SSH.
+    pub kitty_direct: bool,
+    /// Sixel graphics: attribute 4 in the device attributes.
+    pub sixel: Option<Sixel>,
+    /// The cell size in pixels, width then height, from `CSI 16 t`.
+    pub cell_px: Option<(usize, usize)>,
+    /// 24-bit colour: `COLORTERM` says so, or it is Windows Terminal or xterm, or it has
+    /// Kitty graphics.
+    pub truecolor: bool,
+    /// The name and version from XTVERSION, for the stats line.
+    pub name: Option<String>,
+}
+
+/// A terminal's sixel limits.
+#[derive(Debug, PartialEq)]
+pub struct Sixel {
+    /// Colour registers: the most colours one image can use. 256 when the terminal does not say.
+    pub colors: usize,
+    /// The largest image, width then height in pixels, when the terminal says.
+    pub max: Option<(usize, usize)>,
+}
+
+impl Caps {
+    /// Reads the answers `probe` returned. `colorterm` is `$COLORTERM`, and `windows_terminal`
+    /// whether `$WT_SESSION` is set: Windows Terminal has 24-bit colour but does not say so.
+    pub fn parse(reply: &[u8], colorterm: Option<&str>, windows_terminal: bool) -> Caps {
+        let mut caps = Caps::default();
+        let (mut sixel, mut colors, mut max) = (false, None, None);
+        let text = String::from_utf8_lossy(reply);
+        // Every answer starts with ESC, and a string answer's ST is an ESC too.
+        for answer in text.split('\x1b') {
+            let numbers = |s: &str| s.split(';').map(|n| n.parse::<usize>().ok()).collect::<Option<Vec<usize>>>();
+            if let Some((keys, message)) = answer.strip_prefix("_G").and_then(|a| a.split_once(';')) {
+                caps.kitty_shm |= keys == "i=31" && message == "OK";
+                caps.kitty_direct |= keys == "i=32" && message == "OK";
+            } else if let Some(name) = answer.strip_prefix("P>|") {
+                caps.name = Some(name.to_string());
+            } else if let Some(list) = answer.strip_prefix("[?").and_then(|a| a.strip_suffix('c')) {
+                sixel = list.split(';').any(|a| a == "4");
+            } else if let Some(values) = answer.strip_prefix("[?").and_then(|a| a.strip_suffix('S')).and_then(numbers) {
+                // Item, status (0 is success), then the values.
+                match values[..] {
+                    [1, 0, n] => colors = Some(n),
+                    [2, 0, w, h] => max = Some((w, h)),
+                    _ => {}
+                }
+            } else if let Some(values) = answer.strip_prefix("[6;").and_then(|a| a.strip_suffix('t')).and_then(numbers)
+                && let [h, w] = values[..]
+                && w > 0
+                && h > 0
+            {
+                caps.cell_px = Some((w, h));
+            }
+        }
+        if sixel {
+            caps.sixel = Some(Sixel { colors: colors.unwrap_or(256), max });
+        }
+        // xterm has had 24-bit colour for years without setting COLORTERM.
+        let xterm = caps.name.as_deref().is_some_and(|name| name.starts_with("XTerm("));
+        caps.truecolor = matches!(colorterm, Some("truecolor" | "24bit")) || windows_terminal || xterm || caps.kitty_shm || caps.kitty_direct;
+        caps
     }
 }
 
@@ -292,6 +375,12 @@ pub fn remove_stale_shm() {
 /// the next slot, a file in /dev/shm, which is then hard-linked under the fresh name, and the
 /// slot's own name keeps the pages alive. Elsewhere each image is a new shm object. Every name
 /// is removed on drop.
+///
+/// A direct ring (`ShmRing::direct`) has no files and sends each image inline instead, for a
+/// terminal that cannot read the pond's shared memory (over SSH, say).
+///
+/// One image in 60 asks for the terminal's answer, so a terminal that keeps failing to show
+/// them shows up as `Input::Graphics` errors; the rest are sent quietly (`q=2`).
 pub struct ShmRing {
     /// Empty outside Linux.
     slots: Vec<(PathBuf, *mut u8)>,
@@ -303,8 +392,10 @@ pub struct ShmRing {
     next: usize,
     seq: u64,
     links: VecDeque<String>,
-    /// Image bytes sent through the ring so far, for the stats line.
+    /// Image bytes sent through the ring so far, before compression, for the stats line.
     pub bytes: usize,
+    /// Sends inline (`t=d`), zlib-compressed, instead of through shared memory.
+    direct: bool,
 }
 
 impl ShmRing {
@@ -322,6 +413,7 @@ impl ShmRing {
             seq: 0,
             links: VecDeque::new(),
             bytes: 0,
+            direct: false,
         };
         #[cfg(target_os = "linux")]
         let mut ring = ring;
@@ -340,6 +432,23 @@ impl ShmRing {
         Ok(ring)
     }
 
+    /// A ring that sends every image inline, compressed, in chunks of at most 4096 base64
+    /// bytes, as a terminal must accept them. It has no size limit and no files.
+    pub fn direct() -> ShmRing {
+        ShmRing {
+            slots: Vec::new(),
+            keep: 0,
+            prefix: String::new(),
+            capacity: usize::MAX,
+            #[cfg(target_os = "linux")]
+            next: 0,
+            seq: 0,
+            links: VecDeque::new(),
+            bytes: 0,
+            direct: true,
+        }
+    }
+
     /// Appends to `out` a Kitty graphics command with `keys` (for example `a=T,f=32,s=..`)
     /// that transmits `data` through the next slot. Fails if `data` is larger than a slot.
     pub fn transmit(&mut self, out: &mut Vec<u8>, data: &[u8], keys: &str) -> io::Result<()> {
@@ -347,6 +456,21 @@ impl ShmRing {
             return Err(io::Error::other(format!("image of {} bytes does not fit a {} byte ring slot", data.len(), self.capacity)));
         }
         self.seq += 1;
+        self.bytes += data.len();
+        let quiet = if self.seq.is_multiple_of(60) { "" } else { ",q=2" };
+        if self.direct {
+            // Level 1 compresses the water about as well as 6, several times faster.
+            let text = B64.encode(miniz_oxide::deflate::compress_to_vec_zlib(data, 1));
+            let chunks: Vec<&[u8]> = text.as_bytes().chunks(4096).collect();
+            for (k, chunk) in chunks.iter().enumerate() {
+                let more = u8::from(k + 1 < chunks.len());
+                let head = if k == 0 { format!("\x1b_G{keys},t=d,o=z{quiet},m={more};") } else { format!("\x1b_Gm={more}{quiet};") };
+                out.extend_from_slice(head.as_bytes());
+                out.extend_from_slice(chunk);
+                out.extend_from_slice(b"\x1b\\");
+            }
+            return Ok(());
+        }
         let name = format!("/{}-{}", self.prefix, self.seq);
         #[cfg(target_os = "linux")]
         {
@@ -357,7 +481,7 @@ impl ShmRing {
         }
         #[cfg(not(target_os = "linux"))]
         write_shm(&name, data)?;
-        out.extend_from_slice(format!("\x1b_G{keys},t=s,S={},q=2;{}\x1b\\", data.len(), B64.encode(&name)).as_bytes());
+        out.extend_from_slice(format!("\x1b_G{keys},t=s,S={}{quiet};{}\x1b\\", data.len(), B64.encode(&name)).as_bytes());
         self.links.push_back(name);
         // The slot this link points at is about to be overwritten, so Ghostty has long read it.
         while self.links.len() > self.keep {
@@ -365,7 +489,6 @@ impl ShmRing {
                 unlink(&old);
             }
         }
-        self.bytes += data.len();
         Ok(())
     }
 }
@@ -461,13 +584,18 @@ pub enum Input {
     /// Any byte outside an escape sequence: a key, or a control character such as Tab (9) or
     /// Ctrl-C (3).
     Key(u8),
+    /// A Kitty graphics answer (`ESC _ G i=..;OK ESC \`): `ok` unless it reports an error.
+    Graphics {
+        /// The answer is `OK`.
+        ok: bool,
+    },
     /// Any other escape sequence, including other mouse reports.
     Other,
 }
 
 /// Splits raw input into events: focus reports (`CSI I`, `CSI O`), SGR mouse reports
-/// (`CSI < b;x;y M`, or `m` for a release), other CSI sequences, a lone Esc, Esc chords,
-/// and single-byte keys.
+/// (`CSI < b;x;y M`, or `m` for a release), other CSI sequences, Kitty graphics answers, a
+/// late XTVERSION answer, a lone Esc, Esc chords, and single-byte keys.
 /// Also returns how many bytes the events used. An escape sequence cut off at the end of
 /// `input` is left over, for the caller to put in front of the next read, since a read can
 /// end partway through one.
@@ -495,6 +623,25 @@ pub fn parse_input(input: &[u8]) -> (Vec<Input>, usize) {
             let Some(end) = rest[2..].iter().position(|b| (0x40..=0x7e).contains(b)) else { break };
             i += end + 3;
             events.push(Input::Other);
+        } else if let Some(prefix) = [b"\x1b_Gi=".as_slice(), b"\x1bP>|"].into_iter().find(|p| rest.len() > 1 && (rest.starts_with(p) || p.starts_with(rest))) {
+            // A string up to ST. Only these two starts are taken for one, and only printable
+            // text inside, so Alt with `_` or `P` stays a chord.
+            let end = rest.windows(2).position(|w| w == b"\x1b\\");
+            let inside = &rest[1..end.unwrap_or(rest.len())];
+            // A read can end between the ST's two bytes.
+            let printable = inside.strip_suffix(b"\x1b").unwrap_or(inside).iter().all(|b| (0x20..0x7f).contains(b));
+            match end {
+                Some(end) if printable && end >= prefix.len() => {
+                    let body = &rest[2..end];
+                    events.push(if rest[1] == b'_' { Input::Graphics { ok: body.split(|&b| b == b';').nth(1) == Some(b"OK") } } else { Input::Other });
+                    i += end + 2;
+                }
+                None if printable && rest.len() < 512 => break,
+                _ => {
+                    i += 2;
+                    events.push(Input::Other);
+                }
+            }
         } else if rest == b"\x1b" {
             events.push(Input::Escape);
             i += 1;
@@ -553,9 +700,63 @@ mod tests {
         assert!(names.iter().all(|n| read(n).is_none()), "drop unlinks what is left");
     }
 
+    /// A direct ring sends the image zlib-compressed in base64 chunks of at most 4096 bytes:
+    /// the keys on the first, `m=1` on all but the last, and the chunks inflate back to it.
+    #[test]
+    fn direct_ring_chunks_and_inflates() {
+        let mut ring = ShmRing::direct();
+        // Scrambled bytes compress badly, so they take many chunks.
+        let image: Vec<u8> = (0..60_000u32).flat_map(|n| n.wrapping_mul(2_654_435_761).to_le_bytes()).collect();
+        let mut out = Vec::new();
+        ring.transmit(&mut out, &image, "a=T,f=32,s=400,v=150,i=7").expect("transmit");
+        let text = String::from_utf8(out).expect("ASCII");
+        let commands: Vec<&str> = text.split_terminator("\x1b\\").collect();
+        assert!(commands.len() > 2, "{} chunks", commands.len());
+        let mut payload = String::new();
+        for (k, command) in commands.iter().enumerate() {
+            let (keys, data) = command.strip_prefix("\x1b_G").and_then(|c| c.split_once(';')).expect("a graphics command");
+            assert!(data.len() <= 4096 && (data.len() % 4 == 0 || k + 1 == commands.len()), "chunk {k} is {} bytes", data.len());
+            assert_eq!(keys.starts_with("a=T,f=32,s=400,v=150,i=7,t=d,o=z,q=2,"), k == 0, "{keys}");
+            assert!(keys.split(',').any(|key| key == if k + 1 < commands.len() { "m=1" } else { "m=0" }), "{keys}");
+            payload.push_str(data);
+        }
+        let inflated = miniz_oxide::inflate::decompress_to_vec_zlib(&B64.decode(payload).expect("base64")).expect("zlib");
+        assert_eq!(inflated, image);
+        assert_eq!(ring.bytes, image.len());
+    }
+
+    /// Answers recorded from real terminals to `probe`, and silence.
+    #[test]
+    fn caps_from_recorded_answers() {
+        let caps = |reply: &[u8], colorterm: Option<&str>| Caps::parse(reply, colorterm, false);
+        let ghostty = caps(b"\x1b_Gi=31;OK\x1b\\\x1b_Gi=32;OK\x1b\\\x1b[6;21;10t\x1bP>|ghostty 1.3.1\x1b\\\x1b[?62;22;52c", Some("truecolor"));
+        assert_eq!(ghostty, Caps { kitty_shm: true, kitty_direct: true, sixel: None, cell_px: Some((10, 21)), truecolor: true, name: Some("ghostty 1.3.1".to_string()) });
+        let wezterm = caps(b"\x1b_Gi=31;OK\x1b\\\x1b_Gi=32;OK\x1b\\\x1b[?1;0;65536S\x1b[?2;0;1600;990S\x1b[6;22;10t\x1bP>|WezTerm 20260703-142320-59d94d19\x1b\\\x1b[?65;4;6;18;22;52c", Some("truecolor"));
+        assert_eq!((wezterm.kitty_shm, wezterm.sixel, wezterm.cell_px), (true, Some(Sixel { colors: 65536, max: Some((1600, 990)) }), Some((10, 22))));
+        let xterm = caps(b"\x1b[?1;0;256S\x1b[?2;0;2000;2000S\x1bP>|XTerm(390)\x1b\\\x1b[?63;1;2;4;6;9;15;16;22;28c", None);
+        assert_eq!(xterm, Caps { sixel: Some(Sixel { colors: 256, max: Some((2000, 2000)) }), truecolor: true, name: Some("XTerm(390)".to_string()), ..Caps::default() });
+        let foot = caps(b"\x1b[?1;0;1024S\x1b[?2;0;10000;10000S\x1b[6;13;6t\x1bP>|foot(1.16.2)\x1b\\\x1b[?62;4;22c", Some("truecolor"));
+        assert_eq!((foot.kitty_direct, foot.sixel, foot.cell_px, foot.truecolor), (false, Some(Sixel { colors: 1024, max: Some((10000, 10000)) }), Some((6, 13)), true));
+        // mlterm fails the size query and still has sixel.
+        let mlterm = caps(b"\x1b[?1;0;1024S\x1b[?1;3;0S\x1b[6;16;10t\x1bP>|mlterm(3.9.3)\x1b\\\x1b[?63;1;2;3;4;6;7;15;18;22;29c", Some("truecolor"));
+        assert_eq!(mlterm.sixel, Some(Sixel { colors: 1024, max: None }));
+        // tmux answers the sixel queries and the device attributes itself, before Ghostty's
+        // Kitty answers come back through the passthrough.
+        let tmux = caps(b"\x1b[?1;0;1024S\x1b[?2;3;0S\x1b[6;21;10t\x1bP>|tmux 3.4\x1b\\\x1b[?1;2;4c\x1b_Gi=31;OK\x1b\\\x1b_Gi=32;OK\x1b\\", Some("truecolor"));
+        assert_eq!((tmux.kitty_shm, tmux.kitty_direct, tmux.sixel), (true, true, Some(Sixel { colors: 1024, max: None })));
+        // GNOME Terminal (VTE) without sixel refuses the sixel queries.
+        let vte = caps(b"\x1b[?1;1S\x1b[?2;1S\x1bP>|VTE(7600)\x1b\\\x1b[?61;1;21;22c", Some("truecolor"));
+        assert_eq!(vte, Caps { truecolor: true, name: Some("VTE(7600)".to_string()), ..Caps::default() });
+        // Over SSH the terminal cannot open the pond's shared memory, but takes inline images.
+        let ssh = caps(b"\x1b_Gi=31;ENOENT:Failed to open shared memory\x1b\\\x1b_Gi=32;OK\x1b\\\x1b[?62;52c", None);
+        assert_eq!((ssh.kitty_shm, ssh.kitty_direct, ssh.truecolor), (false, true, true));
+        assert_eq!(caps(b"", None), Caps::default());
+        assert_eq!(Caps::parse(b"", None, true), Caps { truecolor: true, ..Caps::default() });
+    }
+
     #[test]
     fn parses_mixed_input() {
-        let input = b"\x1b[Of\x1b[<0;12;7M\x1b[<0;12;7m\x1b[<64;3;4M\x1b[<65;3;4M\x1b[<35;9;2M\x1b[<32;9;2M\x1b[Aq\x1bOP\x1bx\t?1\x1b[I\x03\x1b";
+        let input = b"\x1b[Of\x1b[<0;12;7M\x1b[<0;12;7m\x1b[<64;3;4M\x1b[<65;3;4M\x1b[<35;9;2M\x1b[<32;9;2M\x1b[Aq\x1bOP\x1bx\x1b_Gi=100;OK\x1b\\\x1b_Gi=31;ENOENT:gone\x1b\\\x1bP>|foot(1.16.2)\x1b\\\x1b_x\t?1\x1b[I\x03\x1b";
         let expected = [
             Input::Focus(false),
             Input::Key(b'f'),
@@ -569,6 +770,11 @@ mod tests {
             Input::Key(b'q'),
             Input::Other,
             Input::Other,
+            Input::Graphics { ok: true },
+            Input::Graphics { ok: false },
+            Input::Other,
+            Input::Other,
+            Input::Key(b'x'),
             Input::Key(b'\t'),
             Input::Key(b'?'),
             Input::Key(b'1'),
@@ -604,7 +810,7 @@ mod tests {
     /// after an Esc reads as a lone Esc.
     #[test]
     fn split_reads_carry_over() {
-        let input = b"f\x1b[<0;12;7M\x1b[<32;10;7M\x1b[<0;10;7m\x1b[<35;9;2M\x1b[A\x1bOPq\x1b[I";
+        let input = b"f\x1b[<0;12;7M\x1b[<32;10;7M\x1b[<0;10;7m\x1b[<35;9;2M\x1b[A\x1bOPq\x1b_Gi=7;EINVAL:bad\x1b\\t\x1b[I";
         let (whole, _) = parse_input(input);
         for k in 1..input.len() {
             let (mut events, used) = parse_input(&input[..k]);

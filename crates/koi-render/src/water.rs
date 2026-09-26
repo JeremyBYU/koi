@@ -225,12 +225,8 @@ pub(crate) fn srgb_byte(c: f32) -> u32 {
 /// as opaque RGBA bytes, red lowest. Built once per theme; each backend then snaps a pixel
 /// with one lookup, and both snap alike. With no `swatches`, every slot colour is a swatch.
 pub(crate) fn lock_table(palette: &Palette) -> Vec<u32> {
-    let p = palette;
-    let slots = [
-        p.deep, p.mid, p.shallow, p.highlight, p.shadow, p.stone_light, p.stone_dark, p.lily_dark, p.lily_light, p.lily_flower, p.koi_white, p.koi_red, p.koi_sumi, p.ogon, p.outline, p.cloud,
-        p.asagi_blue, p.asagi_red, p.food, p.ui_text, p.ui_dim, p.ui_accent,
-    ];
-    let swatches = if p.swatches.is_empty() { &slots[..] } else { &p.swatches[..] };
+    let slots = palette.slots();
+    let swatches = if palette.swatches.is_empty() { &slots[..] } else { &palette.swatches[..] };
     let oklab = |[r, g, b]: [f32; 3]| {
         let l = (0.412_221_46 * r + 0.536_332_55 * g + 0.051_445_995 * b).cbrt();
         let m = (0.211_903_5 * r + 0.680_699_5 * g + 0.107_396_96 * b).cbrt();

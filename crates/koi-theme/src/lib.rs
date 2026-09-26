@@ -93,6 +93,16 @@ pub struct Palette {
     pub swatches: Vec<Rgb>,
 }
 
+impl Palette {
+    /// Every slot colour above, in order.
+    pub fn slots(&self) -> [Rgb; 22] {
+        [
+            self.deep, self.mid, self.shallow, self.highlight, self.shadow, self.stone_light, self.stone_dark, self.lily_dark, self.lily_light, self.lily_flower, self.koi_white, self.koi_red, self.koi_sumi,
+            self.ogon, self.outline, self.cloud, self.asagi_blue, self.asagi_red, self.food, self.ui_text, self.ui_dim, self.ui_accent,
+        ]
+    }
+}
+
 /// `[light]`: where the light comes from and how strong it is.
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
 pub struct Light {

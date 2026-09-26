@@ -19,6 +19,7 @@ koi-theme = { path = "crates/koi-theme" }
 base64 = "0.22"
 bytemuck = { version = "1.25", features = ["derive"] }
 libc = "0.2"
+miniz_oxide = "0.9"
 pollster = "1.0"
 rodio = { version = "0.22.2", default-features = false, features = ["playback", "mp3", "vorbis"] }
 serde = { version = "1", features = ["derive"] }
@@ -29,7 +30,7 @@ wgpu = { version = "30.0.1", default-features = false, features = ["vulkan", "wg
 
 [package]
 name = "koi-pond"
-description = "A tranquil koi pond for terminals with the Kitty graphics protocol"
+description = "A tranquil koi pond for the terminal"
 readme = "README.md"
 repository = "https://github.com/JeremyBYU/koi"
 keywords = ["koi", "terminal", "kitty-graphics", "ambient", "game"]
@@ -52,6 +53,10 @@ koi-term.workspace = true
 koi-theme.workspace = true
 serde.workspace = true
 toml.workspace = true
+
+[dev-dependencies]
+# Decodes the sixel encoder's output in the tests.
+icy_sixel = "0.7"
 
 # The release archives: scripts/release.sh.
 [profile.dist]
