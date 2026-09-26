@@ -6,11 +6,11 @@
 
 | Crate | Path | What it contains | Depends on |
 |---|---|---|---|
-| `koi-sim` | `crates/koi-sim` | Koi steering, moods, feeding and food, the fixed step `DT`, and the `Splash` and `Shadow` records the water reads. No GPU, terminal or audio code. | nothing |
+| `koi-sim` | `crates/koi-sim` | Koi steering, moods, feeding and food, petting and its bubbles, the fixed step `DT`, and the `Splash` and `Shadow` records the water reads. No GPU, terminal or audio code. | nothing |
 | `koi-theme` | `crates/koi-theme` | Theme files: the built-in themes (compiled in from `themes/`), user themes, `extends` resolution, derived palette slots, and stepping through families and times. `Palette`, `Light`, `Style`, `Scene`. | serde, toml |
-| `koi-render` | `crates/koi-render` | The headless Vulkan device (`Gpu`), the water (`Water`, `water.wgsl`) and the koi sprites (`Poser`, `koi.wgsl`), each with a GPU and a CPU path, painted from a `Theme`. The pond layout comes from `Layout::new(w, h, seed)`, which never sees the theme. Koi outlines, and the fade of a diving koi, are drawn in the pose pass. Pixel themes: hard-edged koi, dither, dash glints and the palette lock table. Weather: rain, mist, fireflies. Food sprites (`food_sprite`) and HUD stones and icons (`hud::Look`). | `koi-sim`, `koi-theme`, wgpu |
-| `koi-term` | `crates/koi-term` | Raw mode, alternate screen, focus and mouse reporting (`report_motion` adds pointer motion for the HUD's hover), restore on exit and on panic, signals, `winsize`, `read_input`, `parse_input` (keys, clicks, scroll, motion, a lone Esc), the shm ring, removal of shm left by killed runs, and for tmux the passthrough wrapper and Unicode placeholder cells. | libc, base64 |
-| `koi-audio` | `crates/koi-audio` | Music with crossfades and per-track loudness normalization, the generated ambient layer and the food chimes, one per food kind on the yo scale, on their own threads. | `koi-sim`, rodio, symphonia |
+| `koi-render` | `crates/koi-render` | The headless Vulkan device (`Gpu`), the water (`Water`, `water.wgsl`) and the koi sprites (`Poser`, `koi.wgsl`), each with a GPU and a CPU path, painted from a `Theme`. The pond layout comes from `Layout::new(w, h, seed)`, which never sees the theme. Koi outlines, and the fade of a diving koi, are drawn in the pose pass. Pixel themes: hard-edged koi, dither, dash glints and the palette lock table. Weather: rain, mist, fireflies. A petted koi's tail flutter and head shimmer. Food and bubble sprites (`food_sprite`, `bubble_sprite`) and HUD stones and icons (`hud::Look`). | `koi-sim`, `koi-theme`, wgpu |
+| `koi-term` | `crates/koi-term` | Raw mode, alternate screen, focus and mouse reporting of presses, releases and drags (`report_motion` adds pointer motion for the HUD's hover), restore on exit and on panic, signals, `winsize`, `read_input`, `parse_input` (keys, clicks, releases, drags, scroll, motion, a lone Esc), the shm ring, removal of shm left by killed runs, and for tmux the passthrough wrapper and Unicode placeholder cells. | libc, base64 |
+| `koi-audio` | `crates/koi-audio` | Music with crossfades and per-track loudness normalization, the generated ambient layer, the food chimes, one per food kind on the yo scale, and the petting bloop, on their own threads. | `koi-sim`, rodio, symphonia |
 | `koi-pond` | root, `src/` | The `koi` binary: `main.rs` (arguments, backend choice, the frame loop, input handling, theme switching and hot reload, the error toast, the adaptive frame rate, the `d` stats line), `hud.rs` (the HUD: its state machine and timers, hit tests, and its images, ids 60 to 67 at z=-2), `config.rs` (the TOML config), `state.rs` (theme, volume and mute, remembered between runs) and `layers.rs` (Kitty images and placements, the pixel themes' scaling up and snapping, and the single frame of tmux mode). | all of the above, serde, toml |
 
 The water height field is in `koi-render`, not `koi-sim`, because on the GPU path it lives in GPU buffers and steps in `water.wgsl`. `koi-sim` only produces the splashes that disturb it.
@@ -21,10 +21,10 @@ Shared dependency versions are in `[workspace.dependencies]` in the root `Cargo.
 
 ### Public API
 
-- `koi-sim`: `School::new(w, h, count, seed)`, `step`, `drop_food(kind, x, y)`, `drop_food_random(kind)`, `FoodKind`, `shadows`, `max_speed_ratio`, and the public `fish`, `food`, `splashes`, `speed` and `calmness`. `Koi::pose` returns a `Pose`, and `Pose::lerp` blends two steps. `noise2` is the value noise shared by koi wandering and koi patterns.
+- `koi-sim`: `School::new(w, h, count, seed)`, `step`, `drop_food(kind, x, y)`, `drop_food_random(kind)`, `pet(x, y, reach, secs)`, `move_hand`, `let_go`, `FoodKind`, `shadows`, `max_speed_ratio`, and the public `fish`, `food`, `bubbles`, `splashes`, `speed` and `calmness`. `Koi::pose` returns a `Pose`, and `Pose::lerp` blends two steps. `noise2` is the value noise shared by koi wandering and koi patterns.
 - `koi-theme`: `Catalog::load`, `resolve`, `summaries`, `next_scene`, `next_time`; `Theme` with `Summary`, `Palette`, `Light`, `Style`, `Scene`, `warnings` and `files`; `Time`, `ROOT`, `Rgb`.
 - `koi-render`: `Gpu::new`, `Water::new`, `set_theme`, `regrid`, `splash`, `step`, `render`, `Poser::new`, `recolor`, `largest`, `bounds`, `pose`, `food_sprite`, and the `hud` painters (`Look`, `Mark`, `Swatch`).
-- `koi-term`: `Terminal::enter`, `report_motion`, `tmux_wrap`, `placeholders`, `QUIT`, `winsize`, `read_input`, `parse_input` returning `Input` events (`Focus`, `Click`, `Scroll`, `Move`, `Escape`, `Key`, `Other`), `remove_stale_shm`, and `ShmRing::new` and `transmit`.
+- `koi-term`: `Terminal::enter`, `report_motion`, `tmux_wrap`, `placeholders`, `QUIT`, `winsize`, `read_input`, `parse_input` returning `Input` events (`Focus`, `Click`, `Release`, `Drag`, `Scroll`, `Move`, `Escape`, `Key`, `Other`), `remove_stale_shm`, and `ShmRing::new` and `transmit`.
 - `koi-audio`: `Audio::start(Settings)`, `send(Event)`, the `status` receiver of `Status`, and `shutdown`.
 
 ### Data flow
@@ -40,7 +40,7 @@ stdin ──> koi-term::parse_input ──> main loop (koi-pond) ──> koi-aud
              layers.rs ──> koi-term::ShmRing ──> Kitty commands on stdout ──> Ghostty
 ```
 
-Input goes to the HUD first (`Hud::input`). What it does not take (a click on the water, `f`, `q`, `d`, `r`) the main loop handles. The `Status` messages from `koi-audio` drive the HUD: a new track peeks the music pill, a volume change peeks it and is saved to the state file, and `NoMusic` hides the pill (as `audio.enabled = false` does) and closes up the row. An audio error shows on the top line; why no music plays shows on the `d` line.
+Input goes to the HUD first (`Hud::input`). What it does not take (a press on the water or on a koi, a drag and release, `f`, `p`, `q`, `d`, `r`) the main loop handles. The `Status` messages from `koi-audio` drive the HUD: a new track peeks the music pill, a volume change peeks it and is saved to the state file, and `NoMusic` hides the pill (as `audio.enabled = false` does) and closes up the row. An audio error shows on the top line; why no music plays shows on the `d` line.
 
 ### Themes
 
@@ -53,7 +53,7 @@ The simulation works in water pixels: a grid of `water_px` pixels per cell width
 ## One frame
 
 1. Work out the target rate (see `[fps]` below), then wait for input until the next frame is due. Input wakes the loop early, so a click takes effect at once and raises the rate. The frame time is the scheduled deadline, not the moment the loop woke. A frame more than one interval late starts a new schedule from now.
-2. Handle input: the HUD first, then focus in and out (`CSI I`, `CSI O`), clicks on the water, keys.
+2. Handle input: the HUD first, then focus in and out (`CSI I`, `CSI O`), presses, drags and releases on the water, keys.
 3. Switch theme if a key asked for it or a watched file changed (see "Themes").
 4. Rebuild everything if the window size changed. The seed stays the same, so the pond keeps its layout. The koi start again from their seeded places.
 5. Step the simulation in fixed 1/60 s steps up to the frame time: `School::step`, hand its splashes to the water, `Water::step`. The simulation runs at 60 Hz whatever the frame rate. Koi are drawn at a blend of the last two steps, at the frame time's fraction of a step.
@@ -61,7 +61,7 @@ The simulation works in water pixels: a grid of `water_px` pixels per cell width
 7. `Layers::encode` appends a fresh image for every koi, plus the water image if it differs from the last one sent, and the food and top line if they changed. `Hud::draw` appends whatever part of the HUD changed: an element's image when its look or fade step changed, a placement to show it again, a delete to hide it, and its text. A koi placement is rounded to a whole screen pixel. The leftover fraction goes into the pose as a fractional origin, so the koi slides inside its image by less than a pixel and moves evenly at any speed. In a pixel theme the placement is rounded to a multiple of `pixel_px` instead, the koi is posed one sprite pixel per art pixel, and the koi and the water are scaled up by repeating pixels to exactly the screen size, since Ghostty would blur any other size. Food sprites are drawn on the art grid and placed on it too.
 8. If anything was appended, write it in one piece inside a synchronized update (mode 2026). Otherwise write nothing.
 
-Images go through `ShmRing`: one ring of shm files for the koi, food and HUD, sized for the largest of them (the help card on HiDPI), and 6 for the water (a full-window image in a pixel theme), mapped and pre-faulted once. A theme switch sends all 40 food images in one write and the next frame sends every koi and up to 8 HUD images, so the main ring holds all of those plus 16 spare: 69 files with the default 5 koi. Each image is copied into the next file, hard-linked under a fresh name and sent with `t=s`. Ghostty unlinks that name after reading it. On exit, SIGINT, SIGTERM, SIGHUP, a write error or a panic, the ring removes its files and any names Ghostty has not read. A run killed with SIGKILL leaves its files behind, and the next start removes them.
+Images go through `ShmRing`: one ring of shm files for the koi, food and HUD, sized for the largest of them (the help card on HiDPI), and 6 for the water (a full-window image in a pixel theme), mapped and pre-faulted once. A theme switch sends all 48 food and bubble images in one write and the next frame sends every koi and up to 8 HUD images, so the main ring holds all of those plus 16 spare: 77 files with the default 5 koi. Each image is copied into the next file, hard-linked under a fresh name and sent with `t=s`. Ghostty unlinks that name after reading it. On exit, SIGINT, SIGTERM, SIGHUP, a write error or a panic, the ring removes its files and any names Ghostty has not read. A run killed with SIGKILL leaves its files behind, and the next start removes them.
 
 ## tmux
 
@@ -104,17 +104,19 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `hud.peek_secs`, `hud.hold_secs` | 3.0, 4.0 | How long a peek shows, and how long the row stays after the last HUD input. |
 | `theme.name` | "summer-garden" | The starting theme. `koi --list-themes` lists them; docs/STYLE.md describes them. |
 | `audio.enabled` | true | Start the audio thread. |
-| `audio.music_dir` | empty | Folder of mp3 and ogg files, with an optional tracks.json. Empty means `<repo>/assets/music`, the music that comes with the game. |
+| `audio.music_dir` | empty | Folder of mp3 and ogg files, with an optional tracks.json. Empty looks in `$XDG_DATA_HOME/koi-pond/music` and beside the binary (see Music files), and plays the three built-in tracks if none has music. |
 | `audio.volume`, `audio.ambient_volume` | 0.7, 0.6 | Music volume, and the ambient layer as a fraction of it. |
 | `audio.chime` | true | Chime when food lands, one voice per food kind. |
 | `audio.normalize` | true | Play every track at about the same loudness. Measured gains are cached in `$XDG_CACHE_HOME/koi-pond/loudness.json` (or `~/.cache`). |
 | `input.mouse` | true | Click the pond to drop food. |
+| `input.pet_click` | true | A press on a koi pets it instead of feeding: holding keeps the hand in the water up to 6 s of nuzzling, a drag leads the koi, and a release or losing focus lets go. false makes every click feed. |
+| `input.pet` | p | Put a hand in the middle of the pond. The nearest koi not feeding, favouring one petted lately, comes and nuzzles it for 3 s. |
 | `input.feed`, `quit`, `stats` | f, q, d | Keys, each one ASCII character. Ctrl-C also quits. |
 | `input.hud`, `help`, `food` | Tab, ?, 1 to 5 | Hide or show the HUD, the help card, and the food kinds (pellets, flakes, petals, seeds, treat). Esc closes a tray, the card, or in "auto" the HUD. |
 | `input.next_track`, `mute`, `volume_up`, `volume_down` | n, m, +, - | Audio keys. |
 | `input.next_theme`, `prev_theme`, `later`, `earlier`, `reload` | t, T, l, L, r | Theme keys. |
 
-"Something is happening" means any of: focused, pellets in the water, recent input, recent food ripples, a koi darting, a HUD element fading. The `d` line shows which one sets the current target.
+"Something is happening" means any of: focused, pellets in the water, recent input, recent food ripples, a koi darting, a koi pleased at being petted, a HUD element fading. The `d` line shows which one sets the current target.
 
 ## Tests
 
@@ -125,7 +127,9 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `food_lands_in_open_water` | `koi-sim` | Random drops, and a click on the rim stones, land every piece in open water, clear of the stones. |
 | `calm_limits_hold` | `koi-sim` | Ten minutes of pond time stay inside the limits for turn rate, speed, spacing and feeding. |
 | `pellets_are_gulped_by_a_rushing_koi`, `flakes_bring_several_koi_calmly`, `petals_are_mouthed_once_and_fade`, `seeds_spiral_down_and_koi_follow`, `the_treat_is_circled_and_shared` | `koi-sim` | Each food kind's handful, cap, float and sink, and the koi's reaction to it. |
-| `chimes_stay_in_key_and_in_character` | `koi-audio` | Every chime is on the yo scale, and each kind has its own register and loudness. |
+| `a_pressed_koi_nuzzles_and_settles` | `koi-sim` | A press on a koi's spine pets it and a press a BL away does not. Pressed mid-body, it comes round to nuzzle the hand, grows pleased and blows bubbles; let go, it lingers, calms within 4 s and cruises again, never faster than `CRUISE_CAP`. |
+| `p_brings_the_nearest_koi` | `koi-sim` | `p` picks the nearest koi that is not eating, which reaches the hand within 10 s, moves on after its nuzzle, and no koi passes `CRUISE_CAP`. |
+| `chimes_stay_in_key_and_in_character` | `koi-audio` | Every chime is on the yo scale, and each kind has its own register and loudness. The petting bell is in key and quiet, with a low bloop, and a second pet soon after is silent. |
 | `sprites_fade_or_shrink` | `koi-render` | Food sprites fade (or, for the treat, shrink bite by bite) and keep their size. |
 | `selout_light_edge_stays_toward_the_sun` | `koi-render` | A selout koi keeps its light edge toward the sun heading east and west, on both backends. |
 | `petals_keep_their_places_across_themes` | `koi-render` | Petal k is in the same place in every theme. |
@@ -135,11 +139,11 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `bad_values_warn_and_keep_the_default` | `koi-pond` (config.rs) | Unknown keys, wrong types, unknown names, negative seconds, non-ASCII keys and short arrays each warn with the file and key and keep the default, while good values beside them apply. |
 | `round_trip_and_the_remembered_theme` | `koi-pond` (state.rs) | The state file reads back what was saved, and the remembered theme gives way once config.toml names another. |
 | `subpixel_motion_is_even` | `koi-render` | A koi moved 0.1 sprite pixels per frame has its rendered centroid advance by about 0.1 every frame. It runs on the CPU path, and on the GPU path too when `VK_ICD_FILENAMES` is set. |
-| `parses_mixed_input` | `koi-term` | Focus reports, clicks, releases, scroll, motion, a lone Esc, Alt chords, SS3 and other CSI sequences, and keys in one read come out as the right events. |
+| `parses_mixed_input` | `koi-term` | Focus reports, clicks, releases, drags, scroll, motion, a lone Esc, Alt chords, SS3 and other CSI sequences, and keys in one read come out as the right events. |
 | `tmux_wrap_doubles_escapes` | `koi-term` | The passthrough doubles every ESC inside it and ends with a single `ESC \`. |
 | `placeholder_cells_carry_row_column_and_id` | `koi-term` | Placeholder cells have the cursor move, the id as a 256-colour foreground, and the right row and column marks, including past the end of the mark table. |
 | `split_reads_carry_over` | `koi-term` | Input split across two reads at any byte gives the same events as one read, once the cut-off sequence is carried into the next read. |
-| `backends_draw_the_same_frame` | `koi-render` (tests/parity.rs) | One fixed frame (seed, splashes, 90 steps, koi shadows, a theme switch halfway) of eight themes, water and a posed koi half dived, matches between the CPU and GPU paths within 2/255 per channel. The themes cover every outline mode, mist, rain and fireflies, and the three pixel themes (palette lock, dither, dash glints, crisp koi), whose switch moves the water to a finer art grid with `regrid`. Without `VK_ICD_FILENAMES` only the CPU half runs. |
+| `backends_draw_the_same_frame` | `koi-render` (tests/parity.rs) | One fixed frame (seed, splashes, 90 steps, koi shadows, a theme switch halfway) of eight themes, water and a posed koi half dived and pleased (joy's head shimmer), matches between the CPU and GPU paths within 2/255 per channel. The themes cover every outline mode, mist, rain and fireflies, and the three pixel themes (palette lock, dither, dash glints, crisp koi), whose switch moves the water to a finer art grid with `regrid`. Without `VK_ICD_FILENAMES` only the CPU half runs. |
 | `lock_table_snaps_to_swatches` | `koi-render` | Every palette lock table entry is a swatch, and each swatch snaps to itself. |
 | `regrid_keeps_the_waves` | `koi-render` | Moving the water to a finer grid keeps a ripple's height and place. |
 | `pixel_sprites_are_screen_sized_and_on_the_art_grid` | `koi-pond` (layers.rs) | In a pixel theme the water and every koi image are sent at exactly screen size, and each koi sits on a multiple of `pixel_px`. |
@@ -151,7 +155,9 @@ Print the full commented file with `koi --print-default-config`. The default pat
 
 ## Music files
 
-The mp3 files are not in git. `scripts/fetch-music.sh` downloads every track in `assets/music/tracks.json` from its `download` URL (`--force` downloads them again, `--dry-run` only lists what it would fetch). Credits are in `assets/music/CREDITS.md`.
+Three tracks are built into the binary as Ogg Vorbis (`assets/music/builtin/`), and they play when the music folder has none. The folder is `audio.music_dir`, or else the first that exists of `$XDG_DATA_HOME/koi-pond/music`, `music/` beside the binary, `../share/koi-pond/music` beside it, and the repository's `assets/music` for a binary in `target/release`.
+
+The full set of mp3 files is not in git. `scripts/fetch-music.sh` downloads every track in `assets/music/tracks.json` from its `download` URL into `$XDG_DATA_HOME/koi-pond/music`, with the track list and credits (`--dest DIR` downloads elsewhere, `--force` downloads them again, `--dry-run` only lists what it would fetch). Credits are in `assets/music/CREDITS.md`.
 
 ## Building without libasound2-dev
 

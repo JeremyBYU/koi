@@ -155,6 +155,14 @@ const BRAKE: f32 = 1.5;
 /// the pressure wave with their lateral line, but slow enough that the pond reacts in turn.
 const NOTICE_SPEED: f32 = 3.0;
 const EAT_RANGE: f32 = 0.3;
+/// A petted koi glides to the hand no faster than this, in BL/s: well under `CRUISE_CAP`.
+const NUZZLE_SPEED: f32 = 0.4;
+/// How close, in BL, a nuzzling koi's mouth is to the hand to count as touching it.
+const NUZZLE_REACH: f32 = 0.3;
+/// Seconds between the soft mouthings at the hand.
+const MOUTHING: f32 = 0.6;
+/// Seconds a bubble shows, from surfacing to popping.
+pub const BUBBLE_LIFE: f32 = 1.6;
 
 /// Joints in a koi's spine: a follow-the-leader chain, one BL from head to tail joint.
 pub const JOINTS: usize = 8;
@@ -167,6 +175,9 @@ enum Mood {
     Approach { food: u32 },
     Eat { left: f32 },
     Linger { left: f32, x: f32, y: f32 },
+    /// Nuzzling a hand at (`x`, `y`). `left` counts down, and `near` up, only while the
+    /// mouth touches it.
+    Nuzzle { left: f32, near: f32, x: f32, y: f32 },
 }
 
 /// A koi's colour pattern. The renderer paints each one differently.
@@ -217,12 +228,18 @@ pub struct Koi {
     rest_in: f32,
     depth: f32,
     spine: [(f32, f32); JOINTS],
+    /// 0 to 1: rises while the koi nuzzles a hand and fades after.
+    joy: f32,
+    /// 0 to 1: how often it has been petted lately. `p` prefers a fond koi.
+    fond: f32,
+    /// Seconds until it may blow bubbles again.
+    bubble_in: f32,
 }
 
 impl Koi {
     /// Everything a renderer needs to draw this koi as it is now.
     pub fn pose(&self) -> Pose {
-        Pose { x: self.x, y: self.y, len: self.len, phase: self.phase, energy: self.energy, depth: self.depth, spine: self.spine }
+        Pose { x: self.x, y: self.y, len: self.len, phase: self.phase, energy: self.energy, depth: self.depth, joy: self.joy, spine: self.spine }
     }
 }
 
@@ -245,6 +262,9 @@ pub struct Pose {
     /// where sinking food goes out of sight. Koi dive only while following sinking food, and
     /// never all the way. A renderer dims the koi with depth.
     pub depth: f32,
+    /// How pleased the koi is at being petted, 0 to 1. The tail flutters and the head
+    /// shimmers with it.
+    pub joy: f32,
     /// Joint positions from head to tail, `len / (JOINTS - 1)` apart.
     pub spine: [(f32, f32); JOINTS],
 }
@@ -261,6 +281,7 @@ impl Pose {
             phase: (self.phase + wrap(next.phase - self.phase) * t).rem_euclid(TAU),
             energy: at(self.energy, next.energy),
             depth: at(self.depth, next.depth),
+            joy: at(self.joy, next.joy),
             spine: std::array::from_fn(|i| (at(self.spine[i].0, next.spine[i].0), at(self.spine[i].1, next.spine[i].1))),
         }
     }
@@ -305,6 +326,16 @@ impl Food {
     }
 }
 
+/// A bubble a petted koi blew at the hand. It swells, fades and pops with a tiny splash.
+pub struct Bubble {
+    /// Where it is.
+    pub x: f32,
+    /// Where it is.
+    pub y: f32,
+    /// Seconds since it surfaced. Negative while it is still on its way up, unseen.
+    pub age: f32,
+}
+
 /// The koi and the food, in water pixels (the same grid as `Water`). Splashes they cause
 /// collect in `splashes` until the caller hands them to the water.
 pub struct School {
@@ -314,6 +345,8 @@ pub struct School {
     pub fish: Vec<Koi>,
     /// Food in the water, every kind together. Eaten, sunk and faded pieces are removed.
     pub food: Vec<Food>,
+    /// Bubbles on the surface, and on their way up. Popped ones are removed.
+    pub bubbles: Vec<Bubble>,
     /// Splashes caused since the caller last drained this. Food landing and being eaten
     /// makes rings; every swimming koi adds a small wake each step.
     pub splashes: Vec<Splash>,
@@ -430,9 +463,12 @@ impl School {
                 rest_in: 20.0 + 60.0 * rand(&mut rng),
                 depth: 0.0,
                 spine: std::array::from_fn(|i| (head.0 - heading.cos() * link * i as f32, head.1 - heading.sin() * link * i as f32)),
+                joy: 0.0,
+                fond: 0.0,
+                bubble_in: 0.0,
             });
         }
-        School { w, h, fish, food: Vec::new(), splashes: Vec::new(), speed: 1.0, calmness: 1.0, next_food: 0, nibbler: None, last_nibbler: 0, next_bite: 0.0, rng }
+        School { w, h, fish, food: Vec::new(), bubbles: Vec::new(), splashes: Vec::new(), speed: 1.0, calmness: 1.0, next_food: 0, nibbler: None, last_nibbler: 0, next_bite: 0.0, rng }
     }
 
     /// Drops a handful of `kind` around (`x`, `y`) with a splash, and returns how many pieces
@@ -482,6 +518,66 @@ impl School {
         }
     }
 
+    /// Puts a hand in the water at (`x`, `y`) for a koi to nuzzle for `secs` of touching it,
+    /// and returns which koi. It is the free koi (not coming for food or eating) whose spine
+    /// passes within `reach` BL of the hand, the nearest counted in BL and shortened by how
+    /// fond the koi is. `reach` of 0.25 takes a press on a koi's body, and infinity the
+    /// nearest koi anywhere. With none, nothing happens. Otherwise any earlier hand is let go,
+    /// the water rings softly, and a few curious koi nearby come to watch.
+    pub fn pet(&mut self, x: f32, y: f32, reach: f32, secs: f32) -> Option<usize> {
+        let (k, _) = self
+            .fish
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| !matches!(f.mood, Mood::Approach { .. } | Mood::Eat { .. }))
+            .filter_map(|(k, f)| {
+                let d = f
+                    .spine
+                    .windows(2)
+                    .map(|s| {
+                        let ((ax, ay), (tx, ty)) = (s[0], (s[1].0 - s[0].0, s[1].1 - s[0].1));
+                        let t = (((x - ax) * tx + (y - ay) * ty) / (tx * tx + ty * ty).max(1e-6)).clamp(0.0, 1.0);
+                        (x - ax - tx * t).hypot(y - ay - ty * t)
+                    })
+                    .fold(f32::INFINITY, f32::min)
+                    / f.len;
+                (d <= reach).then_some((k, d / (1.0 + f.fond)))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))?;
+        self.let_go();
+        self.splashes.push(Splash { x, y, radius: self.h * 0.03, amount: 0.35 });
+        for (j, o) in self.fish.iter_mut().enumerate() {
+            let (dx, dy) = (o.x - x, o.y - y);
+            let d = dx.hypot(dy).max(0.01);
+            if j != k && matches!(o.mood, Mood::Cruise | Mood::Rest { .. }) && d < 4.0 * o.len && rand(&mut self.rng) < 0.3 {
+                o.mood = Mood::Linger { left: 4.0 + 4.0 * rand(&mut self.rng), x: x + dx / d * 1.2 * o.len, y: y + dy / d * 1.2 * o.len };
+            }
+        }
+        let f = &mut self.fish[k];
+        f.mood = Mood::Nuzzle { left: secs, near: 0.0, x, y };
+        f.fond = (f.fond + 0.25).min(1.0);
+        Some(k)
+    }
+
+    /// Moves the hand a koi is nuzzling, kept to open water, and the koi follows it.
+    pub fn move_hand(&mut self, x: f32, y: f32) {
+        let hand = open_water(self.w, self.h, 0.0, x, y);
+        for f in &mut self.fish {
+            if let Mood::Nuzzle { x, y, .. } = &mut f.mood {
+                (*x, *y) = hand;
+            }
+        }
+    }
+
+    /// Takes the hand out of the water. The koi that was nuzzling it lingers there a while.
+    pub fn let_go(&mut self) {
+        for f in &mut self.fish {
+            if let Mood::Nuzzle { x, y, .. } = f.mood {
+                f.mood = Mood::Linger { left: 4.0 + 4.0 * rand(&mut self.rng), x, y };
+            }
+        }
+    }
+
     /// The fastest koi's speed as a multiple of the calm cruising speed.
     pub fn max_speed_ratio(&self) -> f32 {
         self.fish.iter().map(|f| f.speed / (CRUISE * self.speed.max(0.05) * f.len)).fold(0.0, f32::max)
@@ -515,6 +611,13 @@ impl School {
             }
         }
         self.food.retain(|p| p.age < p.kind.spec().floats + p.kind.spec().fades);
+        for b in &mut self.bubbles {
+            b.age += DT;
+            if b.age >= BUBBLE_LIFE {
+                self.splashes.push(Splash { x: b.x, y: b.y, radius: self.h * 0.012, amount: 0.08 });
+            }
+        }
+        self.bubbles.retain(|b| b.age < BUBBLE_LIFE);
 
         // The circling koi take turns: once the last bite has settled, the next koi round the
         // ring after the last one to bite goes in.
@@ -551,6 +654,7 @@ impl School {
             let fwd = (f.heading.cos(), f.heading.sin());
             let mouth = (f.x + fwd.0 * 0.45 * bl, f.y + fwd.1 * 0.45 * bl);
             f.hunger = (f.hunger + DT / 300.0).min(1.0);
+            let at_hand = matches!(f.mood, Mood::Nuzzle { x, y, .. } if (mouth.0 - x).hypot(mouth.1 - y) < NUZZLE_REACH * bl);
 
             f.mood = match f.mood {
                 Mood::Rest { left } if left > DT => Mood::Rest { left: left - DT },
@@ -558,8 +662,29 @@ impl School {
                 Mood::Eat { .. } => Mood::Linger { left: 4.0 + 4.0 * rand(&mut self.rng), x: mouth.0, y: mouth.1 },
                 Mood::Linger { left, x, y } if left > DT => Mood::Linger { left: left - DT, x, y },
                 Mood::Rest { .. } | Mood::Linger { .. } => Mood::Cruise,
+                Mood::Nuzzle { left, near, x, y } if at_hand && left > DT => Mood::Nuzzle { left: left - DT, near: near + DT, x, y },
+                Mood::Nuzzle { x, y, .. } if at_hand => Mood::Linger { left: 4.0 + 4.0 * rand(&mut self.rng), x, y },
                 mood => mood,
             };
+            // Mouthing the hand now and then, and once in a while a few bubbles.
+            if let Mood::Nuzzle { near, .. } = f.mood
+                && at_hand
+            {
+                if near % MOUTHING < DT {
+                    self.splashes.push(Splash { x: mouth.0, y: mouth.1, radius: 0.06 * bl, amount: 0.15 });
+                }
+                if near >= 0.4 && f.bubble_in <= 0.0 {
+                    // Just past the snout, where they show against the water.
+                    for n in 0..3u8 {
+                        let (angle, r) = (rand(&mut self.rng) * TAU, 0.06 * bl * rand(&mut self.rng).sqrt());
+                        self.bubbles.push(Bubble { x: mouth.0 + fwd.0 * 0.15 * bl + angle.cos() * r, y: mouth.1 + fwd.1 * 0.15 * bl + angle.sin() * r, age: -0.3 * f32::from(n) });
+                    }
+                    f.bubble_in = 8.0;
+                }
+            }
+            f.bubble_in -= DT;
+            f.joy += (if at_hand { 1.0 } else { 0.0 } - f.joy) * settle(if at_hand { 0.4 } else { 1.0 });
+            f.fond = (f.fond - DT / 600.0).max(0.0);
             if f.mood == Mood::Cruise {
                 f.rest_in -= DT;
                 if f.rest_in <= 0.0 {
@@ -576,7 +701,7 @@ impl School {
             let current = if let Mood::Approach { food } = f.mood { Some(food) } else { None };
             let target_gone = current.is_some_and(|id| !self.food.iter().any(|p| p.id == id));
             f.rethink -= DT;
-            if (f.rethink <= 0.0 || target_gone) && !matches!(f.mood, Mood::Eat { .. }) {
+            if (f.rethink <= 0.0 || target_gone) && !matches!(f.mood, Mood::Eat { .. } | Mood::Nuzzle { .. }) {
                 f.rethink = 0.5;
                 let best = self
                     .food
@@ -609,7 +734,7 @@ impl School {
                 }
             }
             let target = if let Mood::Approach { food } = f.mood { self.food.iter().find(|p| p.id == food) } else { None };
-            let feeding = matches!(f.mood, Mood::Approach { .. } | Mood::Eat { .. });
+            let feeding = matches!(f.mood, Mood::Approach { .. } | Mood::Eat { .. } | Mood::Nuzzle { .. });
             // Only food worth a rush brings out the feeding gait, turns and tight spacing.
             let eager = target.is_some_and(|p| p.kind.spec().speed > CRUISE_CAP);
             let dive = match f.mood {
@@ -655,10 +780,28 @@ impl School {
                     let pull = (d / (0.5 * bl)).min(1.0) * 0.8;
                     ((wander.0 * 0.6 + dx / d * pull, wander.1 * 0.6 + dy / d * pull), 0.2)
                 }
+                // Touching, it faces the hand and eases its mouth up to it.
+                Mood::Nuzzle { x, y, .. } if at_hand => {
+                    let (hx, hy) = (x - f.x, y - f.y);
+                    let h = hx.hypot(hy).max(0.01);
+                    ((hx / h * 3.0, hy / h * 3.0), 0.8 * ((x - mouth.0) * fwd.0 + (y - mouth.1) * fwd.1).max(0.0) / bl)
+                }
+                // Otherwise the body heads for a mouth's length short of the hand, then turns to
+                // face it, so a koi pressed on its back swims round rather than circling over.
+                Mood::Nuzzle { x, y, .. } => {
+                    let (hx, hy) = (x - f.x, y - f.y);
+                    let h = hx.hypot(hy).max(0.01);
+                    let (sx, sy) = (hx - hx / h * 0.45 * bl, hy - hy / h * 0.45 * bl);
+                    let s = sx.hypot(sy).max(0.001);
+                    let far = (s / (0.2 * bl)).min(1.0);
+                    let (wx, wy) = (sx / s * far + hx / h * (1.0 - far), sy / s * far + hy / h * (1.0 - far));
+                    let n = wx.hypot(wy).max(0.001);
+                    ((wx / n * 3.0, wy / n * 3.0), NUZZLE_SPEED * (s / (0.75 * bl)).clamp(0.3, 1.0) * (0.3 + 0.7 * ((wx * fwd.0 + wy * fwd.1) / n).max(0.0)))
+                }
             };
             let target_speed = target_speed * knob;
 
-            let (sep_r, sep_w) = if eager { (0.6, 0.8) } else { (1.2, 1.5) };
+            let (sep_r, sep_w) = if eager || matches!(f.mood, Mood::Nuzzle { .. }) { (0.6, 0.8) } else { (1.2, 1.5) };
             let (mut align, mut centre, mut yield_to, mut crowded) = ((0.0, 0.0), (0.0, 0.0), 1.0f32, false);
             for (j, &(ox, oy, ovx, ovy, olen, _)) in others.iter().enumerate() {
                 let (dx, dy) = (ox - f.x, oy - f.y);
@@ -742,7 +885,7 @@ impl School {
             }
 
             // Low-pass the wish, then turn towards it no faster than the cap.
-            let (tau, turn_cap) = if eager {
+            let (tau, turn_cap) = if eager || matches!(f.mood, Mood::Nuzzle { .. }) {
                 (FEED_TAU, FEED_TURN)
             } else if feeding {
                 (2.0 * FEED_TAU, CALM_FEED_TURN)
@@ -771,10 +914,11 @@ impl School {
             let braking = f.mood != Mood::Cruise && speed > target_speed * 1.25;
             speed *= (-(DRAG + if braking || speed > cap { BRAKE } else { 0.0 }) * DT).exp();
             f.speed = speed.max(0.02) * bl;
-            f.energy += (if matches!(f.mood, Mood::Rest { .. }) { 0.1 } else if bursting { 1.0 } else { 0.25 } - f.energy) * settle(0.3);
+            f.energy += (if matches!(f.mood, Mood::Rest { .. }) { 0.1 } else if at_hand { 0.12 } else if bursting { 1.0 } else { 0.25 } - f.energy) * settle(0.3);
 
-            // Tail beat at Strouhal 0.3 for a 0.2 BL peak-to-peak tail: f = 0.3 U / 0.2.
-            let beat = (1.5 * (f.speed / bl).max(0.1)).clamp(0.3, 2.0);
+            // Tail beat at Strouhal 0.3 for a 0.2 BL peak-to-peak tail: f = 0.3 U / 0.2. A
+            // pleased koi flutters its tail faster than it swims.
+            let beat = (1.5 * (f.speed / bl).max(0.1)).clamp(0.3, 2.0) + 1.2 * f.joy;
             f.phase = (f.phase + TAU * beat * DT).rem_euclid(TAU);
 
             let dir = (f.heading.cos(), f.heading.sin());
@@ -1077,6 +1221,79 @@ mod tests {
         assert!(biters.iter().filter(|&&b| b > 0).count() >= 3, "bites by koi: {biters:?}");
         assert!(fastest < DART, "a koi darted at {fastest:.2} times cruise speed");
         assert!(school.food.iter().all(|p| p.kind != FoodKind::Treat), "the treat outlived a minute, {bites} bites taken");
+    }
+
+    /// A press on a koi's spine pets it and a press a BL away does not. Held, the koi nuzzles
+    /// the hand and grows pleased; let go, it lingers, calms and swims on. Never faster than
+    /// a cruise.
+    #[test]
+    fn a_pressed_koi_nuzzles_and_settles() {
+        let mut school = School::new(320, 190, 1, 21);
+        for _ in 0..300 {
+            school.step();
+        }
+        let f = &school.fish[0];
+        let (x, y) = f.spine[3];
+        let side = (-(f.spine[2].1 - f.spine[4].1), f.spine[2].0 - f.spine[4].0);
+        let n = side.0.hypot(side.1);
+        assert_eq!(school.pet(x + side.0 / n * f.len, y + side.1 / n * f.len, 0.25, 6.0), None);
+        assert_eq!(school.pet(x, y, 0.25, 6.0), Some(0));
+        // Pressed mid-body, it turns away and comes round to face the hand.
+        let (mut fastest, mut bubbled) = (0.0f32, false);
+        for _ in 0..(8.0 / DT) as usize {
+            school.step();
+            fastest = fastest.max(school.fish[0].speed / school.fish[0].len);
+            bubbled |= !school.bubbles.is_empty();
+            if matches!(school.fish[0].mood, Mood::Nuzzle { near, .. } if near > 1.0) {
+                break;
+            }
+        }
+        let f = &school.fish[0];
+        assert!(matches!(f.mood, Mood::Nuzzle { near, .. } if near > 1.0), "{:?} after 8 s", f.mood);
+        assert!(f.joy > 0.5 && bubbled, "joy {:.2}, bubbles {bubbled} while nuzzling", f.joy);
+        school.let_go();
+        assert!(matches!(school.fish[0].mood, Mood::Linger { .. }));
+        let mut settled = None;
+        for step in 0..(10.0 / DT) as usize {
+            school.step();
+            fastest = fastest.max(school.fish[0].speed / school.fish[0].len);
+            if step == (4.0 / DT) as usize {
+                assert!(school.fish[0].joy < 0.05, "joy {:.2} 4 s after letting go", school.fish[0].joy);
+            }
+            if settled.is_none() && school.fish[0].mood == Mood::Cruise {
+                settled = Some(step as f32 * DT);
+            }
+        }
+        assert!(settled.is_some_and(|t| (4.0..=8.1).contains(&t)), "back to cruising after {settled:?} s");
+        assert!(fastest <= CRUISE_CAP, "petting brought a koi to {fastest:.2} BL/s");
+    }
+
+    /// `p` brings the nearest free koi to a hand in the middle of the pond, calmly, and it
+    /// nuzzles a while and moves on. A koi eating is left to it.
+    #[test]
+    fn p_brings_the_nearest_koi() {
+        let mut school = School::new(320, 190, 5, 21);
+        for _ in 0..300 {
+            school.step();
+        }
+        let (x, y) = (160.0, 95.0);
+        school.fish[1].mood = Mood::Eat { left: 30.0 };
+        let nearest = school.fish.iter().enumerate().filter(|&(k, _)| k != 1).map(|(k, f)| (k, f.spine.iter().map(|&(sx, sy)| (sx - x).hypot(sy - y) / f.len).fold(f32::INFINITY, f32::min))).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(k, _)| k);
+        let k = school.pet(x, y, f32::INFINITY, 3.0);
+        assert_eq!(k, nearest);
+        let k = k.expect("a koi came");
+        let (mut touched, mut fastest) = (None, 0.0f32);
+        for step in 0..(15.0 / DT) as usize {
+            school.step();
+            let f = &school.fish[k];
+            fastest = fastest.max(school.fish.iter().map(|f| f.speed / f.len).fold(0.0, f32::max));
+            if touched.is_none() && (f.x + f.heading.cos() * 0.45 * f.len - x).hypot(f.y + f.heading.sin() * 0.45 * f.len - y) < NUZZLE_REACH * f.len {
+                touched = Some(step as f32 * DT);
+            }
+        }
+        assert!(touched.is_some_and(|t| t < 10.0), "the koi reached the hand at {touched:?} s");
+        assert!(!matches!(school.fish[k].mood, Mood::Nuzzle { .. }), "still nuzzling after 15 s");
+        assert!(fastest <= CRUISE_CAP, "a koi swam {fastest:.2} BL/s");
     }
 
     /// Random drops, and a click on a corner stone, land every piece in open water.

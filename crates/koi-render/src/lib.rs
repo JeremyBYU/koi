@@ -10,7 +10,7 @@ pub mod hud;
 mod koi;
 mod water;
 
-pub use food::food_sprite;
+pub use food::{bubble_sprite, food_sprite};
 pub use gpu::Gpu;
 pub use koi::Poser;
 pub use water::Water;

@@ -415,7 +415,7 @@ impl Hud {
                 (self.pointer, self.hover, self.dwell) = (None, None, None);
                 Reply::Pass
             }
-            Input::Move { .. } | Input::Focus(true) | Input::Other => Reply::Pass,
+            Input::Move { .. } | Input::Release { .. } | Input::Drag { .. } | Input::Focus(true) | Input::Other => Reply::Pass,
         };
         // Start the fades now, not at the next frame.
         self.tick(now);

@@ -34,6 +34,8 @@ Options:
 
 Default keys (change them in the [input] section of the config):
   click, f      drop food where you click, or somewhere random
+  press a koi   pet it; hold to stay, drag to lead it
+  p             put a hand in the pond for the nearest koi
   1-5           pick the food: pellets, flakes, petals, seeds, treat
   t, T          next or previous scene
   l, L          later or earlier time of day
@@ -304,6 +306,8 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
     let mut last_water: Option<Instant> = None;
     let mut last_food_change: Option<Instant> = None;
     let mut focused = true;
+    // A press on a koi is holding a hand in the water, until the release.
+    let mut holding = false;
     let mut show_stats = false;
     // The start of an escape sequence the last read cut off.
     let mut pending = Vec::new();
@@ -323,7 +327,8 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
         let ripples = last_food_change.is_some_and(|t| now - t < Duration::from_secs_f64(cfg.fps.ripple_secs));
         let darting = scene.school.max_speed_ratio() > cfg.fps.dart_speed;
         let hud_fading = hud.settings.show != Show::Hidden && hud.fading(now);
-        let reason = [(focused, "focused"), (food_in_water, "food"), (recent_input, "input"), (ripples, "ripples"), (darting, "darting"), (hud_fading, "hud")].iter().find(|r| r.0).map_or("calm", |r| r.1);
+        let petting = scene.school.fish.iter().any(|f| f.pose().joy > 0.05);
+        let reason = [(focused, "focused"), (food_in_water, "food"), (recent_input, "input"), (ripples, "ripples"), (darting, "darting"), (petting, "petting"), (hud_fading, "hud")].iter().find(|r| r.0).map_or("calm", |r| r.1);
         let target = if reason == "calm" { cfg.fps.unfocused_calm } else { cfg.fps.focused }.max(1);
         let interval = Duration::from_secs_f64(1.0 / f64::from(target));
         let due = last_present + interval;
@@ -375,6 +380,10 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
             match event {
                 Input::Focus(gained) => {
                     focused = gained;
+                    if !gained && holding {
+                        scene.school.let_go();
+                        holding = false;
+                    }
                     // tmux may have redrawn the pane while away.
                     if gained && tmux.is_some() {
                         scene.layers.redraw();
@@ -386,12 +395,27 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
                     let food = hud.food();
                     let (cols, rows) = (scene.layers.grid.cols, scene.layers.grid.rows);
                     let (w, h) = (scene.layers.grid.water_w as f32, scene.layers.grid.water_h as f32);
-                    let landed = scene.school.drop_food(food, (col as f32 - 0.5) * w / cols as f32, (row as f32 - 0.5) * h / rows as f32);
-                    if landed > 0
+                    let (x, y, pan) = ((col as f32 - 0.5) * w / cols as f32, (row as f32 - 0.5) * h / rows as f32, (col as f32 - 0.5) / cols as f32 * 2.0 - 1.0);
+                    if cfg.input.pet_click && scene.school.pet(x, y, 0.25, 6.0).is_some() {
+                        holding = true;
+                        if let Some(audio) = audio {
+                            audio.send(Event::Pet(pan));
+                        }
+                    } else if scene.school.drop_food(food, x, y) > 0
                         && let Some(audio) = audio
                     {
-                        audio.send(Event::Chime(food, (col as f32 - 0.5) / cols as f32 * 2.0 - 1.0));
+                        audio.send(Event::Chime(food, pan));
                     }
+                }
+                Input::Drag { col, row } if holding => {
+                    last_input = now;
+                    let (cols, rows) = (scene.layers.grid.cols, scene.layers.grid.rows);
+                    let (w, h) = (scene.layers.grid.water_w as f32, scene.layers.grid.water_h as f32);
+                    scene.school.move_hand((col as f32 - 0.5) * w / cols as f32, (row as f32 - 0.5) * h / rows as f32);
+                }
+                Input::Release { .. } if holding => {
+                    scene.school.let_go();
+                    holding = false;
                 }
                 Input::Key(3) => return Ok(()),
                 // Ctrl-L redraws, as in a shell.
@@ -412,13 +436,21 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
                         {
                             audio.send(Event::Chime(food, x / scene.layers.grid.water_w as f32 * 2.0 - 1.0));
                         }
+                    } else if key == cfg.input.pet {
+                        let (w, h) = (scene.layers.grid.water_w as f32, scene.layers.grid.water_h as f32);
+                        if scene.school.pet(w / 2.0, h / 2.0, f32::INFINITY, 3.0).is_some() {
+                            holding = false;
+                            if let Some(audio) = audio {
+                                audio.send(Event::Pet(0.0));
+                            }
+                        }
                     } else if key == cfg.input.stats {
                         show_stats = !show_stats;
                     } else if key == cfg.input.reload {
                         reload = true;
                     }
                 }
-                Input::Scroll { .. } | Input::Move { .. } | Input::Escape | Input::Other => {}
+                Input::Scroll { .. } | Input::Move { .. } | Input::Drag { .. } | Input::Release { .. } | Input::Escape | Input::Other => {}
             }
         }
 

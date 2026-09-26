@@ -21,12 +21,15 @@ struct Params {
     lock_on: u32,
     // How deep the koi has dived, 0 to 1 (`Pose::depth`).
     depth: f32,
+    // How pleased the koi is at being petted, 0 to 1 (`Pose::joy`).
+    joy: f32,
     // 0..1 sRGB. `water` is `mid`, standing in for the water under the fish; `deep` is the
-    // water over a diving koi.
+    // water over a diving koi; `highlight` is a pleased koi's shimmer.
     outline: vec4<f32>,
     shadow: vec4<f32>,
     water: vec4<f32>,
     deep: vec4<f32>,
+    highlight: vec4<f32>,
     curve: array<vec4<f32>, CURVE>,
 }
 
@@ -137,7 +140,9 @@ fn pose(@builtin(global_invocation_id) id: vec3<u32>) {
     if v.a < 0.5 / 255.0 {
         return;
     }
-    let body = v.rgb / v.a;
+    // A pleased koi's head shimmers, in bands running back from the nose.
+    let glow = 0.25 * params.joy * (1.0 - smoothstep(0.15, 0.45, a)) * (0.5 + 0.5 * sin(TAU * 5.0 * a - 2.0 * params.phase));
+    let body = mix(v.rgb / v.a, params.highlight.rgb, glow);
     // The side of the body this pixel is on, in screen space, against the sun.
     let facing = dot(vec2<f32>(along.y, -along.x), params.sun) * select(1.0, -1.0, vb < 0.0);
     let dimmed = mix(mix(body, edge_color(body, facing), e), params.deep.rgb, DIVE_DIM * params.depth);

@@ -9,7 +9,7 @@ use koi_theme::{Catalog, ROOT};
 /// One fixed frame: a pond built in the root theme, stepped through three splashes with a
 /// switch to `id` halfway, then the water image and one posed koi. A pixel theme moves the
 /// water to a finer art grid on the switch, carrying the waves over. The first koi is half
-/// dived, so its shadow and body show the dive.
+/// dived, so its shadow and body show the dive, and pleased, so its head shimmers.
 fn frame(gpu: Option<&Gpu>, catalog: &Catalog, id: &str) -> (Vec<u8>, Vec<u8>) {
     let (w, h, seed) = (192, 108, 11);
     let theme = catalog.resolve(id).expect("built-in theme");
@@ -30,7 +30,7 @@ fn frame(gpu: Option<&Gpu>, catalog: &Catalog, id: &str) -> (Vec<u8>, Vec<u8>) {
     shadows[0].depth = 0.5;
     let pond = water.render(&shadows).to_vec();
     let mut poser = Poser::new(gpu, &school, &theme, 2.0);
-    let pose = Pose { depth: 0.5, ..school.fish[0].pose() };
+    let pose = Pose { depth: 0.5, joy: 0.8, ..school.fish[0].pose() };
     let (left, top, right, bottom) = poser.bounds(0, &pose);
     let (sw, sh) = (usize::try_from(right - left + 1).expect("width"), usize::try_from(bottom - top + 1).expect("height"));
     let koi = poser.pose(0, &pose, left as f32 + 0.3, top as f32 + 0.6, sw, sh).to_vec();

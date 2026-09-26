@@ -97,7 +97,12 @@ normalize = true
 [input]
 # Click the pond to drop food.
 mouse = true
+# Pressing on a koi pets it instead of feeding: hold to keep your hand in the water, drag to
+# lead the koi. false makes every click drop food.
+pet_click = true
 feed = "f"
+# A hand in the middle of the pond, for the nearest koi to come and nuzzle.
+pet = "p"
 quit = "q"
 stats = "d"
 next_track = "n"
@@ -214,7 +219,9 @@ pub struct Audio {
 #[derive(Deserialize, Clone)]
 pub struct Input {
     pub mouse: bool,
+    pub pet_click: bool,
     pub feed: char,
+    pub pet: char,
     pub quit: char,
     pub stats: char,
     pub next_track: char,
@@ -317,7 +324,7 @@ impl Config {
         // Keys are matched a byte at a time, and the terminal sends any other character as
         // several bytes.
         let i = &self.input;
-        let keys = [i.feed, i.quit, i.stats, i.next_track, i.mute, i.volume_up, i.volume_down, i.next_theme, i.prev_theme, i.later, i.earlier, i.reload, i.hud, i.help];
+        let keys = [i.feed, i.pet, i.quit, i.stats, i.next_track, i.mute, i.volume_up, i.volume_down, i.next_theme, i.prev_theme, i.later, i.earlier, i.reload, i.hud, i.help];
         if let Some(key) = keys.iter().chain(&i.food).find(|k| !k.is_ascii()) {
             return Err(format!("expects an ASCII key, got {key:?}"));
         }

@@ -44,7 +44,7 @@ pub struct Terminal;
 
 impl Terminal {
     /// Puts the terminal in raw mode on the alternate screen with focus reporting, and SGR
-    /// mouse reporting if `mouse`. Installs the signal handlers that set `QUIT` and a panic
+    /// mouse reporting of presses, releases and drags if `mouse`. Installs the signal handlers that set `QUIT` and a panic
     /// hook that restores the terminal when the calling thread panics. `tmux_image` is the
     /// image a tmux pane shows through placeholder cells, which the restore deletes. Fails if
     /// stdin is not a terminal.
@@ -88,7 +88,7 @@ impl Terminal {
 
         let mut setup = b"\x1b[?1049h\x1b[?25l\x1b[?1004h\x1b[2J".to_vec();
         if mouse {
-            setup.extend_from_slice(b"\x1b[?1000h\x1b[?1006h");
+            setup.extend_from_slice(b"\x1b[?1000h\x1b[?1002h\x1b[?1006h");
         }
         write_fd(&setup);
         Ok(Terminal)
@@ -122,7 +122,7 @@ fn restore() {
     } else {
         tmux_wrap(&mut bytes, format!("\x1b_Ga=d,d=I,i={tmux_image},q=2\x1b\\").as_bytes());
     }
-    bytes.extend_from_slice(b"\x1b[?2026l\x1b[?1004l\x1b[?1003l\x1b[?1006l\x1b[?1000l\x1b[0m\x1b[?25h\x1b[?1049l");
+    bytes.extend_from_slice(b"\x1b[?2026l\x1b[?1004l\x1b[?1003l\x1b[?1002l\x1b[?1006l\x1b[?1000l\x1b[0m\x1b[?25h\x1b[?1049l");
     write_fd(&bytes);
     let stderr = STDERR.swap(-1, Ordering::Relaxed);
     if stderr >= 0 {
@@ -373,6 +373,20 @@ pub enum Input {
         /// 1-based cell row.
         row: usize,
     },
+    /// The left button let go at a 1-based cell column and row.
+    Release {
+        /// 1-based cell column.
+        col: usize,
+        /// 1-based cell row.
+        row: usize,
+    },
+    /// The pointer moved to a 1-based cell column and row with the left button held.
+    Drag {
+        /// 1-based cell column.
+        col: usize,
+        /// 1-based cell row.
+        row: usize,
+    },
     /// A wheel step at a 1-based cell column and row: SGR button 64 (`up`) or 65.
     Scroll {
         /// 1-based cell column.
@@ -401,7 +415,8 @@ pub enum Input {
 }
 
 /// Splits raw input into events: focus reports (`CSI I`, `CSI O`), SGR mouse reports
-/// (`CSI < b;x;y M`), other CSI sequences, a lone Esc, Esc chords, and single-byte keys.
+/// (`CSI < b;x;y M`, or `m` for a release), other CSI sequences, a lone Esc, Esc chords,
+/// and single-byte keys.
 /// Also returns how many bytes the events used. An escape sequence cut off at the end of
 /// `input` is left over, for the caller to put in front of the next read, since a read can
 /// end partway through one.
@@ -418,6 +433,8 @@ pub fn parse_input(input: &[u8]) -> (Vec<Input>, usize) {
             let fields: Vec<usize> = String::from_utf8_lossy(&rest[3..end]).split(';').filter_map(|s| s.parse().ok()).collect();
             events.push(match (&fields[..], rest[end]) {
                 ([0, x, y], b'M') => Input::Click { col: *x, row: *y },
+                ([0, x, y], b'm') => Input::Release { col: *x, row: *y },
+                ([32, x, y], b'M') => Input::Drag { col: *x, row: *y },
                 ([b @ (64 | 65), x, y], b'M') => Input::Scroll { col: *x, row: *y, up: *b == 64 },
                 ([35, x, y], b'M') => Input::Move { col: *x, row: *y },
                 _ => Input::Other,
@@ -458,11 +475,11 @@ mod tests {
             Input::Focus(false),
             Input::Key(b'f'),
             Input::Click { col: 12, row: 7 },
-            Input::Other,
+            Input::Release { col: 12, row: 7 },
             Input::Scroll { col: 3, row: 4, up: true },
             Input::Scroll { col: 3, row: 4, up: false },
             Input::Move { col: 9, row: 2 },
-            Input::Other,
+            Input::Drag { col: 9, row: 2 },
             Input::Other,
             Input::Key(b'q'),
             Input::Other,
@@ -502,7 +519,7 @@ mod tests {
     /// after an Esc reads as a lone Esc.
     #[test]
     fn split_reads_carry_over() {
-        let input = b"f\x1b[<0;12;7M\x1b[<35;9;2M\x1b[A\x1bOPq\x1b[I";
+        let input = b"f\x1b[<0;12;7M\x1b[<32;10;7M\x1b[<0;10;7m\x1b[<35;9;2M\x1b[A\x1bOPq\x1b[I";
         let (whole, _) = parse_input(input);
         for k in 1..input.len() {
             let (mut events, used) = parse_input(&input[..k]);

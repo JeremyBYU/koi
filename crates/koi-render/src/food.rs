@@ -1,6 +1,6 @@
-//! Food sprites: one small straight-alpha RGBA image per food kind and fade level, painted on
-//! the CPU. They are sent once per theme and placed by the binary, so both backends show the
-//! same pixels.
+//! Food and bubble sprites: one small straight-alpha RGBA image per food kind and fade level,
+//! and per bubble stage, painted on the CPU. They are sent once per theme and placed by the
+//! binary, so both backends show the same pixels.
 
 use koi_sim::FoodKind;
 use koi_theme::{Palette, mix};
@@ -82,6 +82,31 @@ pub fn food_sprite(kind: FoodKind, radius: f32, fade: f32, palette: &Palette, bu
             let alpha = if kind == FoodKind::Treat { cover } else { cover * fade };
             buf.extend_from_slice(&color);
             buf.push((alpha * 255.0).round() as u8);
+        }
+    }
+    size
+}
+
+/// Paints one bubble into `buf` as `food_sprite` paints food, and returns its side. `radius`
+/// is a pellet's, and `life` how far the bubble is from surfacing (0) to popping (1): a pale
+/// thin ring with a glint that swells, and fades once it is half gone. The side does not
+/// depend on `life`.
+pub fn bubble_sprite(radius: f32, life: f32, palette: &Palette, buf: &mut Vec<u8>) -> usize {
+    let half = (1.6 * radius).ceil() as usize + 1;
+    let size = 2 * half + 1;
+    let ring = radius * (0.6 + 0.9 * life);
+    let width = (0.1 * radius).max(0.8);
+    let alpha = 0.75 * (life / 0.1).min(1.0) * (1.0 - ((life - 0.5) / 0.5).max(0.0)).powf(0.7);
+    let color = mix(palette.highlight, palette.koi_white, 0.5);
+    buf.clear();
+    for py in 0..size {
+        for px in 0..size {
+            let (u, v) = (px as f32 - half as f32, py as f32 - half as f32);
+            let edge = (u.hypot(v) - ring).abs() - width / 2.0;
+            let glint = (0.5 - ((u + 0.45 * ring).hypot(v + 0.45 * ring) - 0.18 * ring)).clamp(0.0, 1.0);
+            let cover = (0.5 - edge).clamp(0.0, 1.0).max(glint);
+            buf.extend_from_slice(&color);
+            buf.push((alpha * cover * 255.0).round() as u8);
         }
     }
     size

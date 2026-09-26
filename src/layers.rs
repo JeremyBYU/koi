@@ -1,13 +1,13 @@
 use koi_render::Poser;
-use koi_sim::{FoodKind, Pose, School};
+use koi_sim::{BUBBLE_LIFE, FoodKind, Pose, School};
 use koi_term::ShmRing;
 use koi_theme::Palette;
 use std::io;
 
 const FADE_LEVELS: usize = 8;
-/// Main ring slots beyond one write's worth. `recolor` sends all 40 food images in one
-/// write and the next frame sends every koi and up to 8 HUD images, so the ring holds those
-/// plus this many, for Ghostty to fall behind by.
+/// Main ring slots beyond one write's worth. `recolor` sends all 48 food and bubble images in
+/// one write and the next frame sends every koi and up to 8 HUD images, so the ring holds
+/// those plus this many, for Ghostty to fall behind by.
 const RING_SPARE: usize = 16;
 /// The water goes through its own ring, since in a pixel theme it is a full-window image.
 /// It is sent at most once a frame, so a few slots give Ghostty as long to read it as the
@@ -22,8 +22,8 @@ type Spot = [i32; 4];
 
 /// What the terminal shows, as Kitty images. The water is one image scaled up from a coarse
 /// grid. Each koi is its own image at `fish_px` pixels per cell width, posed afresh every
-/// frame and placed to the screen pixel. Food pellets are tiny native images. The water,
-/// pellets and overlay are only sent when they changed.
+/// frame and placed to the screen pixel. Food and bubbles are tiny native images. The water,
+/// food and overlay are only sent when they changed.
 ///
 /// In a pixel theme (`pixel` above 0) the water and the koi share an art grid of `pixel`
 /// screen pixels: each koi is posed with one sprite pixel per art pixel and placed on a
@@ -43,8 +43,9 @@ pub struct Layers {
     scale_y: f32,
     /// Food radius in sprite pixels: screen pixels, or art pixels in a pixel theme.
     pellet_radius: f32,
-    /// Side of each kind's food sprites in screen pixels, by `FoodKind::index`.
-    food_sizes: [usize; FoodKind::ALL.len()],
+    /// Side of each kind's food sprites in screen pixels, by `FoodKind::index`, and last the
+    /// bubbles'.
+    food_sizes: [usize; FoodKind::ALL.len() + 1],
     pellets: Vec<(u32, Spot)>,
     last_water: Vec<u8>,
     /// The last water or koi image scaled up to screen pixels, reused.
@@ -64,7 +65,7 @@ struct Tmux {
     frame: Vec<u8>,
     /// The last water image, scaled to the frame.
     water: Vec<u8>,
-    /// Side and pixels of each food sprite, in `recolor`'s id order.
+    /// Side and pixels of each food and bubble sprite, in `recolor`'s id order.
     food: Vec<(usize, Vec<u8>)>,
     /// The placeholder cells must be written: at start, and when tmux may have lost them.
     grid_due: bool,
@@ -90,7 +91,13 @@ impl Layers {
         let scale_x = (grid.cols * grid.cell_w) as f32 / grid.water_w as f32;
         let pellet_radius = grid.water_h as f32 * 0.011 * scale_x / pixel.max(1) as f32;
         let mut pixels = Vec::new();
-        let food_sizes = FoodKind::ALL.map(|kind| koi_render::food_sprite(kind, pellet_radius, 1.0, palette, &mut pixels) * pixel.max(1));
+        let food_sizes = std::array::from_fn(|n| {
+            let side = match FoodKind::ALL.get(n) {
+                Some(&kind) => koi_render::food_sprite(kind, pellet_radius, 1.0, palette, &mut pixels),
+                None => koi_render::bubble_sprite(pellet_radius, 1.0, palette, &mut pixels),
+            };
+            side * pixel.max(1)
+        });
 
         let screen = (grid.cols * grid.cell_w, grid.rows * grid.cell_h);
         let mut largest = food_sizes.iter().map(|s| s * s * 4).max().unwrap_or(0);
@@ -105,7 +112,7 @@ impl Layers {
         // In tmux the one frame a frame goes through the main ring.
         let (ring, water_ring) = match tmux {
             Some(_) => (ShmRing::new(WATER_SLOTS, screen.0 * screen.1 * 4)?, None),
-            None => (ShmRing::new(FoodKind::ALL.len() * FADE_LEVELS + school.fish.len() + 8 + RING_SPARE, largest)?, Some(ShmRing::new(WATER_SLOTS, water_bytes)?)),
+            None => (ShmRing::new((FoodKind::ALL.len() + 1) * FADE_LEVELS + school.fish.len() + 8 + RING_SPARE, largest)?, Some(ShmRing::new(WATER_SLOTS, water_bytes)?)),
         };
         let mut layers = Layers {
             fish_px,
@@ -128,18 +135,22 @@ impl Layers {
         Ok(layers)
     }
 
-    /// Sends every food kind's sprites in `palette`'s colours, replacing any sent before. Kind
-    /// `k` at fade level `l` (1 to 8) is image `FIRST_FOOD_ID + k * FADE_LEVELS + l - 1`. The
-    /// next `encode` places the food again. In tmux the sprites are kept for `compose`.
+    /// Sends every food kind's sprites in `palette`'s colours, then the bubble's, replacing
+    /// any sent before. Kind `k` at fade level `l` (1 to 8) is image `FIRST_FOOD_ID + k *
+    /// FADE_LEVELS + l - 1`, and a bubble at stage `l` is kind `FoodKind::ALL.len()`. The next
+    /// `encode` places the food again. In tmux the sprites are kept for `compose`.
     pub fn recolor(&mut self, out: &mut Vec<u8>, palette: &Palette) -> io::Result<()> {
         let mut pixels = Vec::new();
         let mut id = FIRST_FOOD_ID;
         if let Some(t) = &mut self.tmux {
             t.food.clear();
         }
-        for kind in FoodKind::ALL {
+        for kind in FoodKind::ALL.map(Some).into_iter().chain([None]) {
             for level in 1..=FADE_LEVELS {
-                let size = koi_render::food_sprite(kind, self.pellet_radius, level as f32 / FADE_LEVELS as f32, palette, &mut pixels);
+                let size = match kind {
+                    Some(kind) => koi_render::food_sprite(kind, self.pellet_radius, level as f32 / FADE_LEVELS as f32, palette, &mut pixels),
+                    None => koi_render::bubble_sprite(self.pellet_radius, (level as f32 - 0.5) / FADE_LEVELS as f32, palette, &mut pixels),
+                };
                 let side = size * self.pixel.max(1);
                 if self.pixel > 0 {
                     upscale(&pixels, size, self.pixel, side, side, &mut self.scaled);
@@ -202,14 +213,15 @@ impl Layers {
             blend(&mut t.frame, screen_w, pixels, w, x as i32, y as i32, per_px, 255);
             self.renders += 1;
         }
-        for food in &school.food {
-            let level = (food.fade() * FADE_LEVELS as f32).ceil() as usize;
+        let food = school.food.iter().map(|food| (food.kind.index(), (food.fade() * FADE_LEVELS as f32).ceil() as usize, food.x, food.y));
+        let bubbles = school.bubbles.iter().filter(|b| b.age >= 0.0).map(|b| (FoodKind::ALL.len(), (b.age / BUBBLE_LIFE * FADE_LEVELS as f32) as usize + 1, b.x, b.y));
+        for (kind, level, fx, fy) in food.chain(bubbles) {
             if level == 0 {
                 continue;
             }
-            let (side, sprite) = &t.food[food.kind.index() * FADE_LEVELS + level - 1];
+            let (side, sprite) = &t.food[kind * FADE_LEVELS + level - 1];
             let half = *side as f32 / 2.0;
-            let (x, y) = ((((food.x * self.scale_x - half) / snap).round() * snap) as i32, (((food.y * self.scale_y - half) / snap).round() * snap) as i32);
+            let (x, y) = ((((fx * self.scale_x - half) / snap).round() * snap) as i32, (((fy * self.scale_y - half) / snap).round() * snap) as i32);
             blend(&mut t.frame, screen_w, sprite, *side, x, y, 1, 255);
         }
         Some(&mut t.frame)
@@ -290,19 +302,19 @@ impl Layers {
             self.renders += 1;
         }
 
-        let pellets: Vec<(u32, Spot)> = school
-            .food
-            .iter()
-            .filter_map(|food| {
-                let level = (food.fade() * FADE_LEVELS as f32).ceil() as usize;
-                let half = self.food_sizes[food.kind.index()] as f32 / 2.0;
+        let food = school.food.iter().map(|food| (food.kind.index(), (food.fade() * FADE_LEVELS as f32).ceil() as usize, food.x, food.y));
+        let bubbles = school.bubbles.iter().filter(|b| b.age >= 0.0).map(|b| (FoodKind::ALL.len(), (b.age / BUBBLE_LIFE * FADE_LEVELS as f32) as usize + 1, b.x, b.y));
+        let pellets: Vec<(u32, Spot)> = food
+            .chain(bubbles)
+            .filter_map(|(kind, level, fx, fy)| {
+                let half = self.food_sizes[kind] as f32 / 2.0;
                 let snap = self.pixel.max(1) as f32;
-                let (x, y) = ((((food.x * self.scale_x - half) / snap).round() * snap) as i32, (((food.y * self.scale_y - half) / snap).round() * snap) as i32);
-                (level > 0).then(|| (FIRST_FOOD_ID + (food.kind.index() * FADE_LEVELS + level - 1) as u32, self.spot(x, y)))
+                let (x, y) = ((((fx * self.scale_x - half) / snap).round() * snap) as i32, (((fy * self.scale_y - half) / snap).round() * snap) as i32);
+                (level > 0).then(|| (FIRST_FOOD_ID + (kind * FADE_LEVELS + level - 1) as u32, self.spot(x, y)))
             })
             .collect();
         if force || pellets != self.pellets {
-            for id in FIRST_FOOD_ID..FIRST_FOOD_ID + (FoodKind::ALL.len() * FADE_LEVELS) as u32 {
+            for id in FIRST_FOOD_ID..FIRST_FOOD_ID + ((FoodKind::ALL.len() + 1) * FADE_LEVELS) as u32 {
                 out.extend_from_slice(format!("\x1b_Ga=d,d=i,i={id},q=2\x1b\\").as_bytes());
             }
             for (n, &(id, spot)) in pellets.iter().enumerate() {

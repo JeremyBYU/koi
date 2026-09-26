@@ -83,9 +83,9 @@ struct Look {
     /// 1 in pixel themes: nearest texels, no anti-aliasing.
     crisp: u32,
     sun: [f32; 2],
-    /// outline, shadow, mid (standing in for the water under the fish) and deep (the water
-    /// over a diving koi), in 0..1 sRGB.
-    colors: [[f32; 4]; 4],
+    /// outline, shadow, mid (standing in for the water under the fish), deep (the water
+    /// over a diving koi) and highlight (a pleased koi's shimmer), in 0..1 sRGB.
+    colors: [[f32; 4]; 5],
 }
 
 impl Look {
@@ -102,14 +102,14 @@ impl Look {
             Outline::Selout => 3,
             Outline::Rim => 4,
         };
-        Look { mode, crisp: u32::from(theme.style.pixel_px > 0), sun: theme.light.sun, colors: [srgb(p.outline), srgb(p.shadow), srgb(p.mid), srgb(p.deep)] }
+        Look { mode, crisp: u32::from(theme.style.pixel_px > 0), sun: theme.light.sun, colors: [srgb(p.outline), srgb(p.shadow), srgb(p.mid), srgb(p.deep), srgb(p.highlight)] }
     }
 }
 
 /// The outline colour for an edge pixel of `body` (straight sRGB) in outline `mode`, where
 /// `facing` is how much the edge faces the sun, -1 to 1. koi.wgsl has the same.
 fn edge_color(body: [f32; 3], mode: u32, facing: f32, look: &Look) -> [f32; 3] {
-    let [outline, shadow, water, _] = look.colors.map(|[r, g, b, _]| [r, g, b]);
+    let [outline, shadow, water, _, _] = look.colors.map(|[r, g, b, _]| [r, g, b]);
     match mode {
         1 => mix(mix(water, body, 0.3), outline, 0.8),
         3 if facing > 0.25 => mix(body, outline, 0.45),
@@ -153,7 +153,10 @@ struct PoseParams {
     sun: [f32; 2],
     lock: u32,
     depth: f32,
-    colors: [[f32; 4]; 4],
+    joy: f32,
+    /// WGSL aligns the colours after `joy` to 16 bytes.
+    pad: [f32; 3],
+    colors: [[f32; 4]; 5],
     curve: [[f32; 4]; CURVE],
 }
 
@@ -168,12 +171,13 @@ struct Body {
     offset: usize,
 }
 
-/// The two painted beat strengths around `energy`, the blend between them, and the tail
-/// wave amplitude in BL.
-fn beat(energy: f32) -> (usize, f32, f32) {
-    let e = energy.clamp(BEATS[0], BEATS[2]);
+/// The two painted beat strengths around the pose's energy, the blend between them, and the
+/// tail wave amplitude in BL: a pleased koi flutters its tail a little even while still.
+/// `Poser::largest` counts on the amplitude staying within 0.1.
+fn beat(pose: &Pose) -> (usize, f32, f32) {
+    let e = pose.energy.clamp(BEATS[0], BEATS[2]);
     let i = if e < BEATS[1] { 0 } else { 1 };
-    (i, (e - BEATS[i]) / (BEATS[i + 1] - BEATS[i]), 0.1 * e)
+    (i, (e - BEATS[i]) / (BEATS[i + 1] - BEATS[i]), (0.1 * e).max(0.07 * pose.joy))
 }
 
 impl Poser {
@@ -221,7 +225,7 @@ impl Poser {
     /// (left, top, right, bottom), inclusive.
     pub fn bounds(&self, k: usize, pose: &Pose) -> (i32, i32, i32, i32) {
         let l = self.bodies[k][0].l;
-        let reach = self.reach + beat(pose.energy).2;
+        let reach = self.reach + beat(pose).2;
         let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
         for [x, y, _, _] in curve(pose) {
             (x0, y0, x1, y1) = (x0.min(x), y0.min(y), x1.max(x), y1.max(y));
@@ -235,7 +239,7 @@ impl Poser {
     pub fn pose(&mut self, k: usize, pose: &Pose, x0: f32, y0: f32, w: usize, h: usize) -> &[u8] {
         self.rgba.clear();
         self.rgba.resize(w * h * 4, 0);
-        let (i, blend, amp) = beat(pose.energy);
+        let (i, blend, amp) = beat(pose);
         let (body, next) = (&self.bodies[k][i], &self.bodies[k][i + 1]);
         let l = body.l;
         let curve = curve(pose);
@@ -259,6 +263,8 @@ impl Poser {
                     sun: self.look.sun,
                     lock: u32::from(!self.lock.is_empty()),
                     depth: pose.depth,
+                    joy: pose.joy,
+                    pad: [0.0; 3],
                     colors: self.look.colors,
                     curve,
                 };
@@ -335,6 +341,10 @@ impl Poser {
                             continue;
                         }
                         let straight = [texel[0] / texel[3], texel[1] / texel[3], texel[2] / texel[3]];
+                        // A pleased koi's head shimmers, in bands running back from the nose.
+                        let glow = 0.25 * pose.joy * (1.0 - smoothstep(0.15, 0.45, a)) * (0.5 + 0.5 * (TAU * 5.0 * a - 2.0 * pose.phase).sin());
+                        let [hr, hg, hb, _] = self.look.colors[4];
+                        let straight = mix(straight, [hr, hg, hb], glow);
                         // The side of the body this pixel is on, in screen space, against the sun.
                         let side = if vb < 0.0 { -1.0 } else { 1.0 } * inv[n].sqrt();
                         let facing = (seg_y * self.look.sun[0] - seg_x * self.look.sun[1]) * side;
@@ -644,7 +654,7 @@ mod tests {
             for heading in [1.0f32, -1.0] {
                 let (x, y, len) = (160.0, 95.0, school.fish[0].len);
                 let spine = std::array::from_fn(|j| (x + heading * len * (0.5 - j as f32 / (JOINTS - 1) as f32), y));
-                let pose = Pose { x, y, len, phase: 0.0, energy: 0.2, depth: 0.0, spine };
+                let pose = Pose { x, y, len, phase: 0.0, energy: 0.2, depth: 0.0, joy: 0.0, spine };
                 let (left, top, right, bottom) = poser.bounds(0, &pose);
                 let (w, h) = ((right - left + 1) as usize, (bottom - top + 1) as usize);
                 let rgba = poser.pose(0, &pose, left as f32, top as f32, w, h);

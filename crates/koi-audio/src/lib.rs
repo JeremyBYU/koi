@@ -1,5 +1,5 @@
-//! Music with per-track loudness normalization, the generated ambient layer and the food
-//! chimes, all on a `koi-audio` thread.
+//! Music with per-track loudness normalization, the generated ambient layer, the food chimes
+//! and the petting sound, all on a `koi-audio` thread.
 
 #![warn(missing_docs)]
 
@@ -31,7 +31,7 @@ pub struct Settings {
     pub muted: bool,
     /// The ambient layer's volume as a fraction of the music volume.
     pub ambient_volume: f32,
-    /// Chime when food lands.
+    /// Chime when food lands, and bloop when a koi is petted.
     pub chime: bool,
     /// Play every track at about the same loudness. Gains are measured in the background
     /// and cached in `$XDG_CACHE_HOME/koi-pond/loudness.json` (or `~/.cache`).
@@ -43,6 +43,9 @@ pub enum Event {
     /// Food of this kind landed: its chime and splash, panned from -1 (left) to 1 (right).
     /// Every chime is on the ambient layer's pentatonic scale, so any mix stays in key.
     Chime(FoodKind, f32),
+    /// A hand went into the water for a koi: a low bloop and a faint high bell, in key with
+    /// the chimes, panned as `Chime`. At most one every 1.5 s sounds.
+    Pet(f32),
     /// Raise the volume by 0.1.
     VolumeUp,
     /// Lower the volume by 0.1.
@@ -208,9 +211,9 @@ fn run(config: Settings, events: Receiver<Event>, status: Sender<Status>) {
 
     loop {
         match events.recv_timeout(Duration::from_millis(20)) {
-            Ok(Event::Chime(kind, pan)) => {
+            Ok(event @ (Event::Chime(..) | Event::Pet(_))) => {
                 if config.chime {
-                    let _ = chimes.send((kind, pan));
+                    let _ = chimes.send(event);
                 }
             }
             Ok(Event::VolumeUp) => {
@@ -456,10 +459,9 @@ fn rand(state: &mut u64) -> f32 {
 }
 
 /// The generative ambient layer: a slow pentatonic pad over a low drone,
-/// soft water noise, occasional drops, and chimes sent over `chimes`.
-/// Each value received on `chimes` is a food kind and a pan from -1 (left) to 1 (right).
+/// soft water noise, occasional drops, and the `Chime` and `Pet` events sent over `chimes`.
 struct Ambient {
-    chimes: Receiver<(FoodKind, f32)>,
+    chimes: Receiver<Event>,
     rng: u64,
     frame: u64,
     right: Option<f32>,
@@ -473,11 +475,13 @@ struct Ambient {
     drops: Vec<Droplet>,
     next_drop: u32,
     chime_voices: Vec<Chime>,
+    /// The frame of the last petting sound.
+    last_pet: Option<u64>,
     reverbs: [Reverb; 2],
 }
 
 impl Ambient {
-    fn new(chimes: Receiver<(FoodKind, f32)>, seed: u64) -> Ambient {
+    fn new(chimes: Receiver<Event>, seed: u64) -> Ambient {
         Ambient {
             chimes,
             rng: seed | 1,
@@ -502,6 +506,7 @@ impl Ambient {
             drops: Vec::with_capacity(16),
             next_drop: 3 * AMBIENT_RATE,
             chime_voices: Vec::with_capacity(16),
+            last_pet: None,
             reverbs: [Reverb::new(0), Reverb::new(23)],
         }
     }
@@ -537,10 +542,31 @@ impl Ambient {
         self.drops.push(Droplet { phase: 0.0, age: 0, freq, pan, amp });
     }
 
+    /// A low bloop and a faint bell two octaves up, unless one sounded in the last 1.5 s.
+    fn pet(&mut self, pan: f32) {
+        if self.last_pet.is_some_and(|at| self.frame - at < u64::from(AMBIENT_RATE) * 3 / 2) {
+            return;
+        }
+        self.last_pet = Some(self.frame);
+        let note = (rand(&mut self.rng) * 5.0) as usize % 5;
+        if self.chime_voices.len() == self.chime_voices.capacity() {
+            self.chime_voices.remove(0);
+        }
+        self.chime_voices.push(Chime { phases: [0.0; 3], delay: (0.06 * SR) as u32, age: 0, freq: YO_SCALE[note] * 4.0, pan, amp: 0.04, partials: BELL });
+        if self.drops.len() == self.drops.capacity() {
+            self.drops.remove(0);
+        }
+        self.drops.push(Droplet { phase: 0.0, age: 0, freq: YO_SCALE[note] * 0.5, pan, amp: 0.12 });
+    }
+
     fn render_frame(&mut self) -> (f32, f32) {
         if self.frame.is_multiple_of(256) {
-            while let Ok((kind, pan)) = self.chimes.try_recv() {
-                self.chime(kind, pan.clamp(-1.0, 1.0));
+            while let Ok(event) = self.chimes.try_recv() {
+                match event {
+                    Event::Chime(kind, pan) => self.chime(kind, pan.clamp(-1.0, 1.0)),
+                    Event::Pet(pan) => self.pet(pan.clamp(-1.0, 1.0)),
+                    _ => {}
+                }
             }
         }
         let t = self.frame as f32 / SR;
@@ -722,7 +748,7 @@ mod tests {
 
     /// Every kind's chime lands on the yo scale in some octave, so any mix of foods stays in
     /// key with the pad. Petals are the quietest and highest, seeds the lowest, and the treat
-    /// is two notes, the second after the first.
+    /// is two notes, the second after the first. Petting rings in key too, softly.
     #[test]
     fn chimes_stay_in_key_and_in_character() {
         let in_key = |freq: f32| YO_SCALE.iter().any(|&n| ((freq / n).log2() - (freq / n).log2().round()).abs() < 1e-4);
@@ -743,5 +769,13 @@ mod tests {
                 }
             }
         }
+        // A second pet soon after is quiet.
+        ambient.chime_voices.clear();
+        ambient.drops.clear();
+        ambient.pet(0.0);
+        ambient.pet(0.0);
+        let voices = &ambient.chime_voices;
+        assert!(voices.len() == 1 && in_key(voices[0].freq) && voices[0].freq > 1000.0 && voices[0].amp < 0.05, "pet bell {:?}", voices.iter().map(|v| (v.freq, v.amp)).collect::<Vec<_>>());
+        assert!(ambient.drops.len() == 1 && ambient.drops[0].freq < 250.0, "pet bloop");
     }
 }
