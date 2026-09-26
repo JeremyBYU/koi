@@ -9,5 +9,10 @@ publish = false
 
 [dependencies]
 base64.workspace = true
-libc.workspace = true
 miniz_oxide.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Threading"] }

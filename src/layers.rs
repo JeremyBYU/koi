@@ -826,7 +826,7 @@ mod tests {
         }
         let mut poser = Poser::new(None, &school, &theme, w as f32 / grid.water_w as f32);
         let mut out = Vec::new();
-        let mut layers = Layers::new(&mut out, grid, &school, &poser, &theme.palette, 11, pixel, (w, h), Tier::Kitty, None, &Caps::default()).expect("shm ring");
+        let mut layers = Layers::new(&mut out, grid, &school, &poser, &theme.palette, 11, pixel, (w, h), Tier::KittyDirect, None, &Caps::default()).expect("layers");
         out.clear();
         let poses: Vec<Pose> = school.fish.iter().map(|f| f.pose()).collect();
         let water = vec![128u8; w * h * 4];

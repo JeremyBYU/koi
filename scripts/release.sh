@@ -12,6 +12,9 @@
 # On macOS, koi-<version>-macos.tar.gz: one universal binary for Apple silicon and Intel.
 # Needs jq and the rustup targets aarch64- and x86_64-apple-darwin.
 #
+# On Windows, under Git Bash, koi-<version>-windows-x86_64.zip: koi.exe built with MSVC. Needs
+# jq and 7z. Set PYTHON=python where there is no python3.
+#
 # --music also packs the full music set into dist/koi-music.tar.gz, which unpacks a music
 # folder: beside the binary, or in ~/.local/share/koi-pond.
 set -euo pipefail
@@ -32,7 +35,7 @@ mkdir -p "$work" dist
 notices() {
   cargo tree -p koi-pond -e normal --target "$1" --prefix none --format '{p}' | awk '!/koi-/ { print $1, substr($2, 2) }' | sort -u > "$work/crates"
   cargo metadata --format-version 1 --filter-platform "$1" > "$work/metadata.json"
-  python3 - "$work/crates" "$work/metadata.json" > "$work/THIRD-PARTY.md" <<'PY'
+  PYTHONUTF8=1 "${PYTHON:-python3}" - "$work/crates" "$work/metadata.json" > "$work/THIRD-PARTY.md" <<'PY'
 import json, pathlib, sys
 wanted = {tuple(line.split()) for line in open(sys.argv[1])}
 packages = sorted((p for p in json.load(open(sys.argv[2]))["packages"] if (p["name"], p["version"]) in wanted), key=lambda p: p["name"])
@@ -50,12 +53,15 @@ for p in packages:
 PY
 }
 
-# Packs the binary $1 with the docs into dist/$2.tar.gz.
+# Packs the binary $1 with the docs into dist/$2.tar.gz, or dist/$2.zip for a Windows .exe.
 pack() {
   rm -rf "dist/$2"
   mkdir "dist/$2"
   cp "$1" README.md LICENSE-MIT LICENSE-APACHE "$work/THIRD-PARTY.md" "dist/$2/"
-  tar -C dist -czf "dist/$2.tar.gz" "$2"
+  case "$1" in
+    *.exe) (cd dist && 7z a -tzip "$2.zip" "$2" > /dev/null) ;;
+    *) tar -C dist -czf "dist/$2.tar.gz" "$2" ;;
+  esac
   rm -r "dist/$2"
 }
 
@@ -85,7 +91,13 @@ case "$(uname -s)" in
     lipo -create -output "$work/koi" target/aarch64-apple-darwin/dist/koi target/x86_64-apple-darwin/dist/koi
     pack "$work/koi" "koi-$version-macos"
     ;;
-  *) echo "release.sh builds on Linux or macOS" >&2; exit 1 ;;
+  MINGW*|MSYS*)
+    notices x86_64-pc-windows-msvc
+    echo "x86_64 build"
+    cargo build --profile dist -p koi-pond --target x86_64-pc-windows-msvc
+    pack target/x86_64-pc-windows-msvc/dist/koi.exe "koi-$version-windows-x86_64"
+    ;;
+  *) echo "release.sh builds on Linux, macOS or Windows (Git Bash)" >&2; exit 1 ;;
 esac
 
 if [[ $music == 1 ]]; then

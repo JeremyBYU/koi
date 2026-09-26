@@ -1,4 +1,4 @@
-/// A headless Vulkan device. Water and koi each build their own pipelines on it. Cloning is
+/// A headless GPU device. Water and koi each build their own pipelines on it. Cloning is
 /// cheap and shares the device.
 #[derive(Clone)]
 pub struct Gpu {
@@ -9,10 +9,10 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    /// Opens the most powerful adapter: Vulkan, or Metal on macOS. The error says why there is
-    /// none, and the caller falls back to the CPU renderers.
+    /// Opens the most powerful adapter: Vulkan, Metal on macOS, or DX12 on Windows. The error
+    /// says why there is none, and the caller falls back to the CPU renderers.
     pub fn new() -> Result<Gpu, String> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor { backends: wgpu::Backends::VULKAN | wgpu::Backends::METAL, ..wgpu::InstanceDescriptor::new_without_display_handle() });
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor { backends: wgpu::Backends::VULKAN | wgpu::Backends::METAL | wgpu::Backends::DX12, ..wgpu::InstanceDescriptor::new_without_display_handle() });
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, ..Default::default() }))
             .map_err(|e| format!("no GPU adapter: {e}"))?;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {

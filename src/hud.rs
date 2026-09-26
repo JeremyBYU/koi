@@ -1255,7 +1255,7 @@ mod tests {
     fn draw_sends_only_changes() {
         let t0 = Instant::now();
         let mut hud = hud("summer-garden", 160, 45, t0);
-        let mut ring = ShmRing::new(4, largest_image(10, 20)).expect("shm ring");
+        let mut ring = ShmRing::direct();
         let mut out = Vec::new();
         hud.draw(&mut out, &mut ring, t0).expect("draw");
         assert!(out.is_empty());

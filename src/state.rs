@@ -1,8 +1,10 @@
+use crate::config::{self, Place};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// What the pond remembers between runs, in `$XDG_STATE_HOME/koi-pond/state.toml` (or
-/// `~/.local/state/koi-pond/state.toml`). It is not configuration: the game rewrites it.
+/// `~/.local/state/koi-pond/state.toml`, on Windows `%LOCALAPPDATA%\koi-pond\state.toml`). It
+/// is not configuration: the game rewrites it.
 #[derive(Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct State {
@@ -18,11 +20,7 @@ pub struct State {
 }
 
 fn path() -> Option<PathBuf> {
-    let base = match std::env::var_os("XDG_STATE_HOME") {
-        Some(dir) if !dir.is_empty() => PathBuf::from(dir),
-        _ => PathBuf::from(std::env::var_os("HOME")?).join(".local/state"),
-    };
-    Some(base.join("koi-pond").join("state.toml"))
+    Some(config::dir(Place::State)?.join("state.toml"))
 }
 
 impl State {
@@ -34,7 +32,7 @@ impl State {
     /// The error is a message for the status line. The file is replaced whole, so a crash
     /// while saving leaves the old one.
     pub fn save(&self) -> Result<(), String> {
-        let path = path().ok_or("no HOME to save state in")?;
+        let path = path().ok_or("no home folder to save state in")?;
         let text = toml::to_string(self).map_err(|e| format!("state: {e}"))?;
         let temp = path.with_extension("toml.tmp");
         path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::write(&temp, text)).and_then(|()| std::fs::rename(&temp, &path)).map_err(|e| format!("{}: {e}", path.display()))

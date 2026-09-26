@@ -3,7 +3,7 @@ mod hud;
 mod layers;
 mod state;
 
-use config::{Backend, Config, Protocol, Show, Tmux};
+use config::{Backend, Config, Place, Protocol, Show, Tmux};
 use koi_audio::{Audio, Event, Settings, Status};
 use koi_render::{Gpu, Poser, Water};
 use koi_sim::{DT, FoodKind, Pose, School};
@@ -31,7 +31,7 @@ const HELP: &str = "A koi pond for the terminal.
 Options:
   --config PATH             Read this config file instead of ~/.config/koi-pond/config.toml
   --theme NAME              Start in this theme
-  --backend gpu|cpu         Render on the GPU (Vulkan or Metal) or the CPU, whatever the config says
+  --backend gpu|cpu         Render on the GPU (Vulkan, Metal or DX12) or the CPU, whatever the config says
   --protocol NAME           Draw with auto (the best the terminal has), kitty, kitty-direct, sixel
                             or blocks, whatever the config says
   --list-themes             List the themes
@@ -85,7 +85,7 @@ fn main() -> ExitCode {
                 }
             },
             "--list-themes" => {
-                let (catalog, warnings) = Catalog::load(config::dir().map(|d| d.join("themes")).as_deref());
+                let (catalog, warnings) = Catalog::load(config::dir(Place::Config).map(|d| d.join("themes")).as_deref());
                 for s in catalog.summaries().iter().filter(|s| !s.hidden) {
                     println!("{:<20} {:<20} {:<24} {}", s.id, s.name, format!("{} · {}", s.family, s.time.name()), s.description);
                 }
@@ -126,7 +126,7 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     }
     if let Some(name) = &theme_arg
-        && let Err(e) = Catalog::load(config::dir().map(|d| d.join("themes")).as_deref()).0.resolve(name)
+        && let Err(e) = Catalog::load(config::dir(Place::Config).map(|d| d.join("themes")).as_deref()).0.resolve(name)
     {
         eprintln!("koi: {e}");
         return ExitCode::from(2);
@@ -175,6 +175,7 @@ fn main() -> ExitCode {
             ambient_volume: cfg.audio.ambient_volume,
             chime: cfg.audio.chime,
             normalize: cfg.audio.normalize,
+            loudness_cache: config::dir(Place::Cache).map(|d| d.join("loudness.json")),
         })
     });
     let result = run(cfg, config_path.as_deref(), theme_arg, state, gpu.as_ref(), audio.as_ref(), (setting, caps, in_tmux), tmux, &mut warnings);
@@ -311,8 +312,8 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
     };
     let (mut tier, warning) = layers::choose(setting, &caps, in_tmux, screen);
     warnings.extend(warning);
-    let themes_dir = config::dir().map(|d| d.join("themes"));
-    let config_file = config_path.map(Path::to_path_buf).or_else(|| config::dir().map(|d| d.join("config.toml")));
+    let themes_dir = config::dir(Place::Config).map(|d| d.join("themes"));
+    let config_file = config_path.map(Path::to_path_buf).or_else(|| config::dir(Place::Config).map(|d| d.join("config.toml")));
     let (mut catalog, found) = Catalog::load(themes_dir.as_deref());
     warnings.extend(found);
     let wanted = theme_arg.as_deref().or(state.theme_for(&cfg.theme.name)).unwrap_or(&cfg.theme.name);

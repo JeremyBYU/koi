@@ -39,8 +39,28 @@ jobs:
           name: macos
           path: dist/*.tar.gz
 
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # The runner's git would check out CRLF line endings, which bash cannot run.
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - run: bash scripts/release.sh
+        env:
+          PYTHON: python
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.zip
+
   publish:
-    needs: [linux, macos]
+    needs: [linux, macos, windows]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +68,7 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - run: cd dist && sha256sum -- *.tar.gz > SHA256SUMS
+      - run: cd dist && sha256sum -- *.tar.gz *.zip > SHA256SUMS
       - run: gh release create "$GITHUB_REF_NAME" dist/* --title "koi $GITHUB_REF_NAME" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}

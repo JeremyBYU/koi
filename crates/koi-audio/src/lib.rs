@@ -34,8 +34,10 @@ pub struct Settings {
     /// Chime when food lands, and bloop when a koi is petted.
     pub chime: bool,
     /// Play every track at about the same loudness. Gains are measured in the background
-    /// and cached in `$XDG_CACHE_HOME/koi-pond/loudness.json` (or `~/.cache`).
+    /// and cached in `loudness_cache`.
     pub normalize: bool,
+    /// The file that keeps measured gains between runs. None measures every run.
+    pub loudness_cache: Option<PathBuf>,
 }
 
 /// A request from the game to the audio thread.
@@ -193,7 +195,8 @@ fn run(config: Settings, events: Receiver<Event>, status: Sender<Status>) {
     let (gains_tx, gains_rx) = mpsc::channel();
     if config.normalize {
         let paths: Vec<(PathBuf, Option<&'static [u8]>)> = tracks.iter().map(|t| (t.path.clone(), t.built_in)).collect();
-        let spawned = thread::Builder::new().name("koi-loudness".into()).spawn(move || measure_all(paths, gains_tx));
+        let cache_file = config.loudness_cache.clone();
+        let spawned = thread::Builder::new().name("koi-loudness".into()).spawn(move || measure_all(paths, cache_file, gains_tx));
         if let Err(e) = spawned {
             let _ = status.send(Status::Error(format!("loudness thread: {e}")));
         }
@@ -286,13 +289,8 @@ fn run(config: Settings, events: Receiver<Event>, status: Sender<Status>) {
 }
 
 /// Sends a gain for every path, in order. Gains are cached by path and file size in
-/// $XDG_CACHE_HOME/koi-pond/loudness.json, because decoding a whole track takes about a second.
-fn measure_all(paths: Vec<(PathBuf, Option<&'static [u8]>)>, gains: Sender<(PathBuf, f32)>) {
-    let cache_file = std::env::var_os("XDG_CACHE_HOME")
-        .filter(|d| !d.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
-        .map(|d| d.join("koi-pond").join("loudness.json"));
+/// `cache_file`, because decoding a whole track takes about a second.
+fn measure_all(paths: Vec<(PathBuf, Option<&'static [u8]>)>, cache_file: Option<PathBuf>, gains: Sender<(PathBuf, f32)>) {
     let mut cache: HashMap<String, (u64, f32)> = cache_file
         .as_ref()
         .and_then(|f| fs::read_to_string(f).ok())

@@ -12,7 +12,7 @@ In a terminal with the Kitty graphics protocol, such as Ghostty or Kitty, the po
 
 ## Install
 
-koi runs on Linux and macOS in any terminal. It looks best in one with the Kitty graphics protocol, such as [Ghostty](https://ghostty.org) or [Kitty](https://sw.kovidgoyal.net/kitty/).
+koi runs on Linux and macOS in any terminal, and on Windows as an experiment. It looks best in one with the Kitty graphics protocol, such as [Ghostty](https://ghostty.org) or [Kitty](https://sw.kovidgoyal.net/kitty/).
 
 Download the archive for your system from the [latest release](https://github.com/JeremyBYU/koi/releases/latest), unpack it and run `koi`:
 
@@ -26,11 +26,13 @@ tar xzf koi-0.2.0-x86_64-linux.tar.gz
 | Linux on Intel or AMD | `koi-<version>-x86_64-linux.tar.gz` |
 | Linux on ARM | `koi-<version>-aarch64-linux.tar.gz` |
 | macOS (Apple silicon and Intel) | `koi-<version>-macos.tar.gz` |
+| Windows on Intel or AMD (experimental) | `koi-<version>-windows-x86_64.zip` |
 
-The binary is one file of about 14 MB with three pieces of music built in. Put it anywhere on your `PATH`, such as `~/.local/bin`. A GPU is optional: koi renders with Vulkan or Metal when it can and on the CPU when it can't, and both look the same.
+The binary is one file of about 14 MB with three pieces of music built in. Put it anywhere on your `PATH`, such as `~/.local/bin`. A GPU is optional: koi renders with Vulkan, Metal or DX12 when it can and on the CPU when it can't, and both look the same.
 
 - On Linux it needs glibc 2.17 or newer and `libasound.so.2`, which every desktop has.
 - On macOS the binary is not signed. If you downloaded the archive with a browser, clear the quarantine flag once: `xattr -d com.apple.quarantine koi`.
+- Windows support is new and nobody has looked at it on a real screen yet. Use Windows Terminal 1.22 or newer, which shows the pond as sixel images; other terminals get blocks. The config goes in `%APPDATA%\koi-pond`, and the music pack unpacks into `%LOCALAPPDATA%\koi-pond`, giving `%LOCALAPPDATA%\koi-pond\music`.
 
 ### More music
 
@@ -136,7 +138,7 @@ Save a theme while koi runs and the pond repaints in place. A mistake shows as a
 
 ## Configuration
 
-Everything has a default, so there is nothing to set up. To change something, start from the full config with a comment on every key:
+Everything has a default, so there is nothing to set up. To change something, start from the full config with a comment on every key (on Windows the folder is `%APPDATA%\koi-pond`):
 
 ```sh
 mkdir -p ~/.config/koi-pond

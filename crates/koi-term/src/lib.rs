@@ -9,7 +9,6 @@
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as B64;
 use std::collections::VecDeque;
-use std::ffi::CString;
 #[cfg(target_os = "linux")]
 use std::fs::OpenOptions;
 use std::io;
@@ -17,18 +16,23 @@ use std::io;
 use std::os::fd::AsRawFd;
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::OpenOptionsExt;
+#[cfg(target_os = "linux")]
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
-/// Set by SIGINT, SIGTERM and SIGHUP. The frame loop exits through the normal cleanup.
+// The same few functions per platform: raw mode, quit signals, stderr, the raw write, the
+// window size, the input wait, and shm objects.
+#[cfg_attr(unix, path = "sys_unix.rs")]
+#[cfg_attr(windows, path = "sys_windows.rs")]
+mod sys;
+
+/// Set by SIGINT, SIGTERM and SIGHUP, or on Windows by Ctrl-Break and closing the console.
+/// The frame loop exits through the normal cleanup.
 pub static QUIT: AtomicBool = AtomicBool::new(false);
 
-static ORIGINAL: OnceLock<libc::termios> = OnceLock::new();
-
-/// A copy of the real stderr while it points at /dev/null. -1 when it is not redirected.
-static STDERR: AtomicI32 = AtomicI32::new(-1);
+static ORIGINAL: OnceLock<sys::Mode> = OnceLock::new();
 
 /// What the restore writes before leaving the alternate screen, such as deleting the images.
 static RESTORE: OnceLock<Vec<u8>> = OnceLock::new();
@@ -38,12 +42,8 @@ static RINGS: AtomicU64 = AtomicU64::new(0);
 
 const SHM_PREFIX: &str = "koi-pond-";
 
-extern "C" fn on_signal(_: libc::c_int) {
-    QUIT.store(true, Ordering::Relaxed);
-}
-
 /// Raw mode, alternate screen, focus reporting, (optionally) mouse reporting and stderr sent to
-/// /dev/null, undone on drop
+/// /dev/null (NUL on Windows), undone on drop
 /// and by a panic on the thread that entered.
 pub struct Terminal;
 
@@ -54,22 +54,11 @@ impl Terminal {
     /// `before_restore` first, to delete what only the pond's protocol knows about (Kitty images, say),
     /// so a terminal without that protocol never sees it. Fails if stdin is not a terminal.
     pub fn enter(mouse: bool, before_restore: Vec<u8>) -> io::Result<Terminal> {
-        let mut original: libc::termios = unsafe { std::mem::zeroed() };
-        if unsafe { libc::tcgetattr(0, &mut original) } != 0 {
-            return Err(io::Error::other(format!("stdin is not a terminal ({})", io::Error::last_os_error())));
-        }
+        let original = sys::raw().map_err(|e| io::Error::other(format!("stdin is not a terminal ({e})")))?;
         let _ = ORIGINAL.set(original);
         let _ = RESTORE.set(before_restore);
-        let mut raw = original;
-        unsafe {
-            libc::cfmakeraw(&mut raw);
-            libc::tcsetattr(0, libc::TCSANOW, &raw);
-        }
 
-        let handler: extern "C" fn(libc::c_int) = on_signal;
-        for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
-            unsafe { libc::signal(signal, handler as libc::sighandler_t) };
-        }
+        sys::catch_quit();
         let default_hook = std::panic::take_hook();
         let main = std::thread::current().id();
         std::panic::set_hook(Box::new(move |info| {
@@ -82,20 +71,13 @@ impl Terminal {
         }));
 
         // Libraries (ALSA especially) print to stderr, which would land on the pond.
-        let null = unsafe { libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY) };
-        if null >= 0 {
-            STDERR.store(unsafe { libc::dup(2) }, Ordering::Relaxed);
-            unsafe {
-                libc::dup2(null, 2);
-                libc::close(null);
-            }
-        }
+        sys::silence_stderr();
 
         let mut setup = b"\x1b[?1049h\x1b[?25l\x1b[?1004h\x1b[2J".to_vec();
         if mouse {
             setup.extend_from_slice(b"\x1b[?1000h\x1b[?1002h\x1b[?1006h");
         }
-        write_fd(&setup);
+        sys::write_fd(&setup);
         Ok(Terminal)
     }
 }
@@ -106,31 +88,13 @@ impl Drop for Terminal {
     }
 }
 
-/// Writes straight to fd 1, bypassing std's stdout lock and buffer, so the panic hook can use it.
-fn write_fd(mut bytes: &[u8]) {
-    while !bytes.is_empty() {
-        let n = unsafe { libc::write(1, bytes.as_ptr().cast(), bytes.len()) };
-        match usize::try_from(n) {
-            Ok(n) if n > 0 => bytes = &bytes[n..],
-            _ if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted => {}
-            _ => return,
-        }
-    }
-}
-
 fn restore() {
     let mut bytes = RESTORE.get().cloned().unwrap_or_default();
     bytes.extend_from_slice(b"\x1b[?2026l\x1b[?1004l\x1b[?1003l\x1b[?1002l\x1b[?1006l\x1b[?1000l\x1b[0m\x1b[?25h\x1b[?1049l");
-    write_fd(&bytes);
-    let stderr = STDERR.swap(-1, Ordering::Relaxed);
-    if stderr >= 0 {
-        unsafe {
-            libc::dup2(stderr, 2);
-            libc::close(stderr);
-        }
-    }
+    sys::write_fd(&bytes);
+    sys::restore_stderr();
     if let Some(original) = ORIGINAL.get() {
-        unsafe { libc::tcsetattr(0, libc::TCSANOW, original) };
+        sys::set_mode(original);
     }
 }
 
@@ -138,7 +102,7 @@ fn restore() {
 /// reveal. Motion arrives as `Input::Move`. Call after `Terminal::enter` with mouse on; the
 /// restore on exit turns it off again.
 pub fn report_motion() {
-    write_fd(b"\x1b[?1003h");
+    sys::write_fd(b"\x1b[?1003h");
 }
 
 /// Appends `escape` to `out` inside a tmux passthrough (`ESC P tmux; ... ESC \`), with every
@@ -213,12 +177,11 @@ pub fn placeholders(out: &mut Vec<u8>, id: u8, row: usize, col: usize, n: usize)
 /// device attributes, so the wait goes on a little for them. Returns what came back within
 /// `timeout`, for `Caps::parse`: nothing at all from a terminal that answers nothing.
 pub fn probe(timeout: Duration, tmux: bool) -> Vec<u8> {
-    let mut original: libc::termios = unsafe { std::mem::zeroed() };
-    if unsafe { libc::tcgetattr(0, &mut original) } != 0 {
+    let Ok(original) = sys::raw() else {
         return Vec::new();
-    }
+    };
     let name = format!("/{SHM_PREFIX}{}-probe", std::process::id());
-    let shm = write_shm(&name, &[0; 4]).is_ok();
+    let shm = sys::write_shm(&name, &[0; 4]).is_ok();
     let mut kitty = Vec::new();
     if shm {
         kitty.extend_from_slice(format!("\x1b_Gi=31,a=q,t=s,f=32,s=1,v=1,S=4;{}\x1b\\", B64.encode(&name)).as_bytes());
@@ -232,12 +195,7 @@ pub fn probe(timeout: Duration, tmux: bool) -> Vec<u8> {
     }
     query.extend_from_slice(b"\x1b[?1;1;0S\x1b[?2;4;0S\x1b[16t\x1b[>0q\x1b[c");
 
-    let mut raw = original;
-    unsafe {
-        libc::cfmakeraw(&mut raw);
-        libc::tcsetattr(0, libc::TCSANOW, &raw);
-    }
-    write_fd(&query);
+    sys::write_fd(&query);
     let start = std::time::Instant::now();
     let mut attributes: Option<std::time::Instant> = None;
     let mut reply = Vec::new();
@@ -255,10 +213,10 @@ pub fn probe(timeout: Duration, tmux: bool) -> Vec<u8> {
         }
         reply.extend(read_input(if tmux && attributes.is_some() { left.min(Duration::from_millis(50)) } else { left }));
     }
-    unsafe { libc::tcsetattr(0, libc::TCSANOW, &original) };
+    sys::set_mode(&original);
     // Only a terminal that did not read the file leaves it behind.
     if shm {
-        unlink(&name);
+        sys::unlink(&name);
     }
     reply
 }
@@ -332,26 +290,16 @@ impl Caps {
     }
 }
 
-/// Columns, rows, and the window size in pixels (0 if the terminal does not say).
+/// Columns, rows, and the window size in pixels (0 if the terminal does not say, as the
+/// Windows console never does).
 pub fn winsize() -> (usize, usize, usize, usize) {
-    let mut ws: libc::winsize = unsafe { std::mem::zeroed() };
-    unsafe { libc::ioctl(1, libc::TIOCGWINSZ, &mut ws) };
-    (ws.ws_col.into(), ws.ws_row.into(), ws.ws_xpixel.into(), ws.ws_ypixel.into())
+    sys::winsize()
 }
 
 /// Waits up to `timeout` for input and returns what arrived, up to 4 KiB. A signal ends the
 /// wait early. An escape sequence can be split across two reads.
 pub fn read_input(timeout: Duration) -> Vec<u8> {
-    let mut fds = libc::pollfd { fd: 0, events: libc::POLLIN, revents: 0 };
-    // Rounded up, so a wait for a frame deadline never wakes before it.
-    let ms = libc::c_int::try_from(timeout.as_micros().div_ceil(1000)).unwrap_or(libc::c_int::MAX);
-    if unsafe { libc::poll(&mut fds, 1, ms) } <= 0 {
-        return Vec::new();
-    }
-    let mut buf = vec![0u8; 4096];
-    let n = unsafe { libc::read(0, buf.as_mut_ptr().cast(), buf.len()) };
-    buf.truncate(usize::try_from(n).unwrap_or(0));
-    buf
+    sys::read_input(timeout)
 }
 
 /// Removes shm objects left by koi processes that no longer exist (killed with SIGKILL, say).
@@ -373,8 +321,9 @@ pub fn remove_stale_shm() {
 /// Shared-memory images sent with `t=s`, each under a fresh name that the terminal unlinks
 /// after reading it. On Linux the pages stay mapped and faulted in: each image is copied into
 /// the next slot, a file in /dev/shm, which is then hard-linked under the fresh name, and the
-/// slot's own name keeps the pages alive. Elsewhere each image is a new shm object. Every name
-/// is removed on drop.
+/// slot's own name keeps the pages alive. On macOS each image is a new shm object. Every name
+/// is removed on drop. On Windows no terminal reads the pond's shared memory, so the first
+/// image sent fails: only a direct ring works there.
 ///
 /// A direct ring (`ShmRing::direct`) has no files and sends each image inline instead, for a
 /// terminal that cannot read the pond's shared memory (over SSH, say).
@@ -382,7 +331,7 @@ pub fn remove_stale_shm() {
 /// One image in 60 asks for the terminal's answer, so a terminal that keeps failing to show
 /// them shows up as `Input::Graphics` errors; the rest are sent quietly (`q=2`).
 pub struct ShmRing {
-    /// Empty outside Linux.
+    #[cfg(target_os = "linux")]
     slots: Vec<(PathBuf, *mut u8)>,
     /// How many sent names to keep before unlinking the oldest, which the terminal has read.
     keep: usize,
@@ -404,6 +353,7 @@ impl ShmRing {
     pub fn new(slots: usize, capacity: usize) -> io::Result<ShmRing> {
         let prefix = format!("{SHM_PREFIX}{}-r{}", std::process::id(), RINGS.fetch_add(1, Ordering::Relaxed));
         let ring = ShmRing {
+            #[cfg(target_os = "linux")]
             slots: Vec::new(),
             keep: slots.max(1),
             prefix,
@@ -436,6 +386,7 @@ impl ShmRing {
     /// bytes, as a terminal must accept them. It has no size limit and no files.
     pub fn direct() -> ShmRing {
         ShmRing {
+            #[cfg(target_os = "linux")]
             slots: Vec::new(),
             keep: 0,
             prefix: String::new(),
@@ -480,49 +431,22 @@ impl ShmRing {
             self.next = (self.next + 1) % self.slots.len();
         }
         #[cfg(not(target_os = "linux"))]
-        write_shm(&name, data)?;
+        sys::write_shm(&name, data)?;
         out.extend_from_slice(format!("\x1b_G{keys},t=s,S={}{quiet};{}\x1b\\", data.len(), B64.encode(&name)).as_bytes());
         self.links.push_back(name);
         // The slot this link points at is about to be overwritten, so Ghostty has long read it.
         while self.links.len() > self.keep {
             if let Some(old) = self.links.pop_front() {
-                unlink(&old);
+                sys::unlink(&old);
             }
         }
         Ok(())
     }
 }
 
-/// Creates the shm object `name` holding `data`.
-fn write_shm(name: &str, data: &[u8]) -> io::Result<()> {
-    let c_name = CString::new(name).map_err(io::Error::other)?;
-    let fd = unsafe { libc::shm_open(c_name.as_ptr(), libc::O_CREAT | libc::O_EXCL | libc::O_RDWR, 0o600u32) };
-    if fd < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    let len = libc::off_t::try_from(data.len()).map_err(io::Error::other)?;
-    let ptr = if unsafe { libc::ftruncate(fd, len) } == 0 { unsafe { libc::mmap(std::ptr::null_mut(), data.len(), libc::PROT_READ | libc::PROT_WRITE, libc::MAP_SHARED, fd, 0) } } else { libc::MAP_FAILED };
-    let result = if ptr == libc::MAP_FAILED {
-        let e = io::Error::last_os_error();
-        unsafe { libc::shm_unlink(c_name.as_ptr()) };
-        Err(e)
-    } else {
-        unsafe { std::slice::from_raw_parts_mut(ptr.cast::<u8>(), data.len()) }.copy_from_slice(data);
-        unsafe { libc::munmap(ptr, data.len()) };
-        Ok(())
-    };
-    unsafe { libc::close(fd) };
-    result
-}
-
-fn unlink(name: &str) {
-    if let Ok(name) = CString::new(name) {
-        unsafe { libc::shm_unlink(name.as_ptr()) };
-    }
-}
-
 impl Drop for ShmRing {
     fn drop(&mut self) {
+        #[cfg(target_os = "linux")]
         for (path, ptr) in &self.slots {
             if !ptr.is_null() {
                 unsafe { libc::munmap(ptr.cast(), self.capacity) };
@@ -530,7 +454,7 @@ impl Drop for ShmRing {
             let _ = std::fs::remove_file(path);
         }
         for name in &self.links {
-            unlink(name);
+            sys::unlink(name);
         }
     }
 }
@@ -668,8 +592,10 @@ mod tests {
 
     /// A sent image is a shm object under a fresh name, holding its bytes until the terminal
     /// unlinks it, and dropping the ring removes every name the terminal left.
+    #[cfg(unix)]
     #[test]
     fn ring_sends_shm_objects() {
+        use std::ffi::CString;
         let mut ring = ShmRing::new(2, 16).expect("ring");
         let mut out = Vec::new();
         for image in [[1u8; 8], [2; 8], [3; 8]] {

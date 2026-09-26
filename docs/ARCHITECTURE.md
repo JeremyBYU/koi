@@ -1,6 +1,6 @@
 # Architecture
 
-`koi` is a Rust binary built from a Cargo workspace of six crates. It runs in any terminal, directly or inside tmux, and draws best with the Kitty graphics protocol, as Ghostty has (see "Terminals"). Build it with `cargo build --release` and run `target/release/koi`. Plain `cargo build`, `cargo test` and `cargo clippy` at the root cover every crate.
+`koi` is a Rust binary built from a Cargo workspace of six crates. It runs in any terminal, directly or inside tmux, and draws best with the Kitty graphics protocol, as Ghostty has (see "Terminals"). It runs on Linux and macOS, and on Windows as an experiment (see "Windows"). Build it with `cargo build --release` and run `target/release/koi`. Plain `cargo build`, `cargo test` and `cargo clippy` at the root cover every crate.
 
 ## Crates
 
@@ -8,8 +8,8 @@
 |---|---|---|---|
 | `koi-sim` | `crates/koi-sim` | Koi steering, moods, feeding and food, petting and its bubbles, the fixed step `DT`, and the `Splash` and `Shadow` records the water reads. No GPU, terminal or audio code. | nothing |
 | `koi-theme` | `crates/koi-theme` | Theme files: the built-in themes (compiled in from `themes/`), user themes, `extends` resolution, derived palette slots, and stepping through families and times. `Palette`, `Light`, `Style`, `Scene`. | serde, toml |
-| `koi-render` | `crates/koi-render` | The headless Vulkan device (`Gpu`), the water (`Water`, `water.wgsl`) and the koi sprites (`Poser`, `koi.wgsl`), each with a GPU and a CPU path, painted from a `Theme`. The pond layout comes from `Layout::new(w, h, seed)`, which never sees the theme. Koi outlines, and the fade of a diving koi, are drawn in the pose pass. Pixel themes: hard-edged koi, dither, dash glints and the palette lock table. Weather: rain, mist, fireflies. A petted koi's tail flutter and head shimmer. Food and bubble sprites (`food_sprite`, `bubble_sprite`) and HUD stones and icons (`hud::Look`). | `koi-sim`, `koi-theme`, wgpu |
-| `koi-term` | `crates/koi-term` | Raw mode, alternate screen, focus and mouse reporting of presses, releases and drags (`report_motion` adds pointer motion for the HUD's hover), restore on exit and on panic, signals, `winsize`, the terminal probe and `Caps`, `read_input`, `parse_input` (keys, clicks, releases, drags, scroll, motion, a lone Esc, Kitty graphics answers), the shm ring and its direct (inline, zlib) mode, removal of shm left by killed runs, and for tmux the passthrough wrapper and Unicode placeholder cells. | libc, base64, miniz_oxide |
+| `koi-render` | `crates/koi-render` | The headless GPU device (`Gpu`: Vulkan, Metal on macOS, DX12 on Windows), the water (`Water`, `water.wgsl`) and the koi sprites (`Poser`, `koi.wgsl`), each with a GPU and a CPU path, painted from a `Theme`. The pond layout comes from `Layout::new(w, h, seed)`, which never sees the theme. Koi outlines, and the fade of a diving koi, are drawn in the pose pass. Pixel themes: hard-edged koi, dither, dash glints and the palette lock table. Weather: rain, mist, fireflies. A petted koi's tail flutter and head shimmer. Food and bubble sprites (`food_sprite`, `bubble_sprite`) and HUD stones and icons (`hud::Look`). | `koi-sim`, `koi-theme`, wgpu |
+| `koi-term` | `crates/koi-term` | Raw mode, alternate screen, focus and mouse reporting of presses, releases and drags (`report_motion` adds pointer motion for the HUD's hover), restore on exit and on panic, signals, `winsize`, the terminal probe and `Caps`, `read_input`, `parse_input` (keys, clicks, releases, drags, scroll, motion, a lone Esc, Kitty graphics answers), the shm ring and its direct (inline, zlib) mode, removal of shm left by killed runs, and for tmux the passthrough wrapper and Unicode placeholder cells. What differs per platform is in `sys_unix.rs` and `sys_windows.rs` (see "Windows"). | libc on Unix, windows-sys on Windows, base64, miniz_oxide |
 | `koi-audio` | `crates/koi-audio` | Music with crossfades and per-track loudness normalization, the generated ambient layer, the food chimes, one per food kind on the yo scale, and the petting bloop, on their own threads. | `koi-sim`, rodio, symphonia |
 | `koi-pond` | root, `src/` | The `koi` binary: `main.rs` (arguments, backend choice, the frame loop, input handling, theme switching and hot reload, the error toast, the adaptive frame rate, the `d` stats line), `hud.rs` (the HUD: its state machine and timers, hit tests, and its images, ids 60 to 67 at z=-2), `config.rs` (the TOML config), `state.rs` (theme, volume and mute, remembered between runs) and `layers.rs` (the tiers and `choose`, Kitty images and placements, the pixel themes' scaling up and snapping, and the single frame of tmux, sixel and blocks with its sinks: placeholder cells, the sixel encoder and the half-block writer). | all of the above, serde, toml |
 
@@ -101,9 +101,33 @@ Blocks without 24-bit colour use the 256-colour palette's cube and grey ramp.
 
 The Kitty tiers ask for the terminal's answer on 1 of every 60 images (no `q`, so an OK comes back too); the rest are sent with `q=2`. Three errors in a row (`Input::Graphics`) drop that capability from `Caps`, and the loop chooses again and rebuilds the scene with a toast. So does a sixel or `kitty-direct` terminal that stays at the frame rate floor of 8, with every write slower than the frame interval, for 5 s. A resize chooses again too. The restore on exit deletes the Kitty images only when the tier at start was a Kitty one, so no other terminal sees a Kitty command.
 
+## Windows
+
+Windows support is experimental: CI runs clippy and the tests on windows-latest, but nobody has watched the pond run there. Windows Terminal 1.22 and newer has sixel and synchronized updates (mode 2026), so it should get the `sixel` tier; other consoles get `blocks`.
+
+`koi-term` keeps what differs per platform in two private modules with the same functions: `sys_unix.rs` (libc) and `sys_windows.rs` (windows-sys). They are raw mode and its restore (`raw`, `set_mode`), the quit handlers (`catch_quit`), stderr sent away and back (`silence_stderr`, `restore_stderr`), the raw write the panic hook uses (`write_fd`), `winsize`, `read_input`, and shm objects (`write_shm`, `unlink`). Everything else in the crate, the probe and `parse_input` included, is shared.
+
+On Windows:
+
+- Raw mode sets stdin to `ENABLE_VIRTUAL_TERMINAL_INPUT | ENABLE_EXTENDED_FLAGS` alone (no line input, echo, processed input or quick edit), and adds `ENABLE_VIRTUAL_TERMINAL_PROCESSING` and `DISABLE_NEWLINE_AUTO_RETURN` to stdout. Keys, mouse reports and the terminal's answers then arrive as the same escape sequences as on Unix, and Ctrl-C is byte 3.
+- `read_input` waits on the stdin handle with `WaitForSingleObject` and reads with `ReadConsoleInputW`, keeping the characters of key-down records. The console queues focus and menu records whatever the mode, so a wake with only those reads them and waits again. A `ReadFile` there would block.
+- Ctrl-Break and closing the console set `QUIT` through `SetConsoleCtrlHandler`. There is no SIGWINCH; the frame loop already reads `winsize` every frame, which comes from `GetConsoleScreenBufferInfo` with no pixel size, so the cell size is the probe's `CSI 16 t` answer, else 10 by 20.
+- stderr is pointed at `NUL` with `SetStdHandle` while the pond is up.
+- No Windows terminal reads a POSIX shm object, so `write_shm` always fails: the probe sends no `t=s` query and a forced `kitty` tier stops with an error that suggests `kitty-direct`, which still works in a terminal that has it.
+- wgpu has the DX12 backend as well as Vulkan.
+
+| Files | Unix | Windows |
+|---|---|---|
+| config.toml and user themes | `$XDG_CONFIG_HOME/koi-pond`, or `~/.config/koi-pond` | `%APPDATA%\koi-pond` |
+| state.toml | `$XDG_STATE_HOME/koi-pond`, or `~/.local/state/koi-pond` | `%LOCALAPPDATA%\koi-pond` |
+| loudness.json | `$XDG_CACHE_HOME/koi-pond`, or `~/.cache/koi-pond` | `%LOCALAPPDATA%\koi-pond` |
+| music | `$XDG_DATA_HOME/koi-pond/music`, or `~/.local/share/koi-pond/music` | `%LOCALAPPDATA%\koi-pond\music` |
+
+`config::dir` picks these, and passes the loudness cache to `koi-audio` in `Settings`. The release job builds `koi.exe` with MSVC and packs `koi-<version>-windows-x86_64.zip` through the Windows branch of `scripts/release.sh`, run under Git Bash.
+
 ## Config keys
 
-Print the full commented file with `koi --print-default-config`. The default path is `$XDG_CONFIG_HOME/koi-pond/config.toml`, or `~/.config/koi-pond/config.toml`. `--config PATH` picks another file. Missing keys use the defaults. Unknown keys and values the game cannot use (a wrong type, an unknown name, negative seconds, a key that is not ASCII) are warnings that keep the default: they show on the top line for 10 s and print again on exit.
+Print the full commented file with `koi --print-default-config`. The default path is `$XDG_CONFIG_HOME/koi-pond/config.toml`, or `~/.config/koi-pond/config.toml` (on Windows, see "Windows"). `--config PATH` picks another file. Missing keys use the defaults. Unknown keys and values the game cannot use (a wrong type, an unknown name, negative seconds, a key that is not ASCII) are warnings that keep the default: they show on the top line for 10 s and print again on exit.
 
 | Key | Default | What it does |
 |---|---|---|
@@ -114,7 +138,7 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `fps.dart_speed` | 1.6 | A koi faster than this multiple of its cruise speed counts as activity. |
 | `fps.send_when_unchanged` | false | Re-send everything every frame, even when nothing changed. |
 | `render.protocol` | "auto" | "auto" asks the terminal (see "Terminals"), or "kitty", "kitty-direct", "sixel" or "blocks" to force one. `--protocol NAME` overrides it for one run. |
-| `render.backend` | "gpu" | "gpu" (wgpu on Vulkan, or Metal on macOS) or "cpu". "gpu" falls back to "cpu" when no adapter is found. `--backend gpu|cpu` overrides it for one run. |
+| `render.backend` | "gpu" | "gpu" (wgpu on Vulkan, Metal on macOS, or DX12 on Windows) or "cpu". "gpu" falls back to "cpu" when no adapter is found. `--backend gpu|cpu` overrides it for one run. |
 | `render.water_px` | 2 | Water image pixels per cell width. |
 | `render.fish_px` | 0 | Koi image pixels per cell width. 0 means native screen pixels, the sharpest koi, capped at 10 on the CPU backend, where posing costs the square of this. 8 sends about two thirds of the bytes with a softer koi. |
 | `render.water_fps` | 30 | Most water images sent per second. |
@@ -162,6 +186,7 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `pixel_stones_are_hard_edged`, `ink_contrasts_with_every_theme` | `koi-render` | HUD stones in pixel themes have no soft alpha; HUD text reads on every theme's stones. |
 | `layout`, `peek_times_out`, `expanded_holds_while_pointed_at`, `clicks_and_trays`, `scene_tray_switches_family`, `one_time_family`, `help_card`, `short_window_only_peeks`, `volume_peeks_on_change`, `draw_sends_only_changes`, `dwell_escape_and_shrinking` | `koi-pond` (hud.rs) | The HUD's layout, timers, hover reveal, clicks, trays, keys, Esc order, collapse in a short window, and that it sends only what changed. They run with `hud.show = "auto"`. |
 | `always_keeps_the_row` | `koi-pond` (hud.rs) | With `hud.show = "always"` the row fades in at start and stays past Esc and the hold time, `Tab` switches to "auto" and back, and a short window only peeks. |
+| `places_per_platform` | `koi-pond` (config.rs) | The config, music, state and cache folders from given variables: XDG with the HOME fallback on Unix, an empty XDG variable counting as unset, and `%APPDATA%` or `%LOCALAPPDATA%` on Windows, where HOME and XDG are ignored. |
 | `bad_values_warn_and_keep_the_default` | `koi-pond` (config.rs) | Unknown keys, wrong types, unknown names, negative seconds, non-ASCII keys and short arrays each warn with the file and key and keep the default, while good values beside them apply. |
 | `round_trip_and_the_remembered_theme` | `koi-pond` (state.rs) | The state file reads back what was saved, and the remembered theme gives way once config.toml names another. |
 | `subpixel_motion_is_even` | `koi-render` | A koi moved 0.1 sprite pixels per frame has its rendered centroid advance by about 0.1 every frame. It runs on the CPU path, and on the GPU path too when `VK_ICD_FILENAMES` is set. |

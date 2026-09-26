@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 /// The compiled-in defaults, and what --print-default-config prints. A user file is merged
@@ -6,7 +7,8 @@ use std::path::{Path, PathBuf};
 pub const DEFAULT: &str = r##"# koi-pond configuration
 #
 # Every key is optional. A missing key, or a missing file, uses the value shown here.
-# Default location: $XDG_CONFIG_HOME/koi-pond/config.toml (or ~/.config/koi-pond/config.toml).
+# Default location: $XDG_CONFIG_HOME/koi-pond/config.toml (or ~/.config/koi-pond/config.toml),
+# on Windows %APPDATA%\koi-pond\config.toml.
 # Another file: koi --config PATH
 
 [fps]
@@ -60,7 +62,8 @@ seed = 0
 [theme]
 # The starting theme. koi --list-themes lists them. After the first run the pond starts
 # with the theme you last switched to, until this line names a different one.
-# Your own themes go in $XDG_CONFIG_HOME/koi-pond/themes/<id>.toml (or ~/.config/...). A
+# Your own themes go in $XDG_CONFIG_HOME/koi-pond/themes/<id>.toml (or ~/.config/..., on
+# Windows %APPDATA%\koi-pond\themes). A
 # three-line file is enough, and one with a built-in's id replaces it:
 #   name = "My Garden"
 #   [palette]
@@ -89,8 +92,9 @@ hold_secs = 4.0
 [audio]
 enabled = true
 # Every mp3 and ogg in this folder plays in shuffled order. tracks.json there adds titles.
-# Empty looks in $XDG_DATA_HOME/koi-pond/music (or ~/.local/share/koi-pond/music), where
-# scripts/fetch-music.sh puts the game's music, then in a music folder beside the binary.
+# Empty looks in $XDG_DATA_HOME/koi-pond/music (or ~/.local/share/koi-pond/music, on Windows
+# %LOCALAPPDATA%\koi-pond\music), where scripts/fetch-music.sh puts the game's music, then in
+# a music folder beside the binary.
 music_dir = ""
 # Music volume, 0.0 to 1.0.
 volume = 0.7
@@ -256,11 +260,42 @@ pub struct Input {
     pub food: [char; 5],
 }
 
-/// `$XDG_CONFIG_HOME/koi-pond`, or `~/.config/koi-pond`.
-pub fn dir() -> Option<PathBuf> {
-    let base = match std::env::var_os("XDG_CONFIG_HOME") {
-        Some(dir) if !dir.is_empty() => PathBuf::from(dir),
-        _ => PathBuf::from(std::env::var_os("HOME")?).join(".config"),
+/// A kind of file koi-pond keeps, each kind in its own folder.
+#[derive(Clone, Copy)]
+pub enum Place {
+    /// config.toml and the user's themes.
+    Config,
+    /// The music.
+    Data,
+    /// The state file.
+    State,
+    /// The loudness cache.
+    Cache,
+}
+
+/// The folder for `place` (see `place_dir`), from this process's environment.
+pub fn dir(place: Place) -> Option<PathBuf> {
+    place_dir(place, cfg!(windows), |name| std::env::var_os(name))
+}
+
+/// The folder for `place`, reading variables with `var`. On Unix, the XDG base directory
+/// (`$XDG_CONFIG_HOME/koi-pond`, or `~/.config/koi-pond` when it is unset or empty, and so on).
+/// On `windows`, `%APPDATA%\koi-pond` for the config, which roams with the user, and
+/// `%LOCALAPPDATA%\koi-pond` for the rest. None when the variable it needs is missing.
+fn place_dir(place: Place, windows: bool, var: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+    let base = if windows {
+        PathBuf::from(var(if matches!(place, Place::Config) { "APPDATA" } else { "LOCALAPPDATA" }).filter(|dir| !dir.is_empty())?)
+    } else {
+        let (xdg, home) = match place {
+            Place::Config => ("XDG_CONFIG_HOME", ".config"),
+            Place::Data => ("XDG_DATA_HOME", ".local/share"),
+            Place::State => ("XDG_STATE_HOME", ".local/state"),
+            Place::Cache => ("XDG_CACHE_HOME", ".cache"),
+        };
+        match var(xdg) {
+            Some(dir) if !dir.is_empty() => PathBuf::from(dir),
+            _ => PathBuf::from(var("HOME")?).join(home),
+        }
     };
     Some(base.join("koi-pond"))
 }
@@ -273,7 +308,7 @@ pub fn load(explicit: Option<&Path>) -> Result<(Config, Vec<String>), String> {
     let mut warnings = Vec::new();
     let path = match explicit {
         Some(path) => Some(path.to_path_buf()),
-        None => dir().map(|d| d.join("config.toml")).filter(|p| p.exists()),
+        None => dir(Place::Config).map(|d| d.join("config.toml")).filter(|p| p.exists()),
     };
     if let Some(path) = &path {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
@@ -302,11 +337,7 @@ pub fn load(explicit: Option<&Path>) -> Result<(Config, Vec<String>), String> {
     }
     let mut config = Config::deserialize(table).map_err(|e| format!("config: {e}"))?;
     if config.audio.music_dir.as_os_str().is_empty() {
-        let data = match std::env::var_os("XDG_DATA_HOME") {
-            Some(dir) if !dir.is_empty() => Some(PathBuf::from(dir)),
-            _ => std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")),
-        }
-        .map(|d| d.join("koi-pond/music"));
+        let data = dir(Place::Data).map(|d| d.join("music"));
         let exe_dir = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf));
         // Beside the binary as unpacked from a release archive, under an install prefix, and
         // the repository's own assets/music for a binary in target/release.
@@ -371,5 +402,27 @@ mod tests {
         assert!(!config.audio.music_dir.as_os_str().is_empty());
         let keys: Vec<&str> = warnings.iter().map(|w| w.strip_prefix(&format!("{}: `", path.display())).and_then(|w| w.split('`').next()).expect("names the file and key")).collect();
         assert_eq!(keys, ["audio.ambient_volume", "bogus", "fps.focused", "fps.from", "fps.input_secs", "hud", "input.feed", "input.food", "input.quit", "pond.koi", "render.backend", "render.protocol"]);
+    }
+
+    /// XDG folders with a HOME fallback on Unix, and APPDATA for the config and LOCALAPPDATA
+    /// for the rest on Windows, where HOME is ignored.
+    #[test]
+    fn places_per_platform() {
+        let env = |vars: &'static [(&'static str, &'static str)]| move |name: &str| vars.iter().find(|v| v.0 == name).map(|v| OsString::from(v.1));
+        let unix = |place, vars| place_dir(place, false, env(vars));
+        let home = &[("HOME", "/home/k"), ("XDG_STATE_HOME", ""), ("APPDATA", "C:/Roaming")];
+        assert_eq!(unix(Place::Config, home), Some(PathBuf::from("/home/k/.config/koi-pond")));
+        assert_eq!(unix(Place::Data, home), Some(PathBuf::from("/home/k/.local/share/koi-pond")));
+        assert_eq!(unix(Place::State, home), Some(PathBuf::from("/home/k/.local/state/koi-pond")), "an empty XDG variable is unset");
+        assert_eq!(unix(Place::Cache, &[("HOME", "/home/k"), ("XDG_CACHE_HOME", "/tmp/c")]), Some(PathBuf::from("/tmp/c/koi-pond")));
+        assert_eq!(unix(Place::Config, &[]), None);
+
+        let windows = |place, vars| place_dir(place, true, env(vars));
+        let profile = &[("APPDATA", "C:/Users/k/AppData/Roaming"), ("LOCALAPPDATA", "C:/Users/k/AppData/Local"), ("HOME", "/home/k"), ("XDG_CONFIG_HOME", "/x")];
+        assert_eq!(windows(Place::Config, profile), Some(PathBuf::from("C:/Users/k/AppData/Roaming/koi-pond")));
+        for place in [Place::Data, Place::State, Place::Cache] {
+            assert_eq!(windows(place, profile), Some(PathBuf::from("C:/Users/k/AppData/Local/koi-pond")));
+        }
+        assert_eq!(windows(Place::Config, &[("HOME", "/home/k"), ("APPDATA", "")]), None);
     }
 }
