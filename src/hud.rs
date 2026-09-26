@@ -884,7 +884,7 @@ impl Hud {
                 let (_, full) = self.painted[k].as_ref().expect("painted just above");
                 let mut rgba = full.clone();
                 if view.step < 4 {
-                    for px in rgba.chunks_exact_mut(4) {
+                    for px in rgba.as_chunks_mut::<4>().0 {
                         px[3] = u8::try_from(usize::from(px[3]) * view.step / 4).expect("at most 255");
                     }
                 }

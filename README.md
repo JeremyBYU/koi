@@ -52,7 +52,7 @@ cargo build --release
 target/release/koi
 ```
 
-This needs Rust 1.88 or newer.
+This needs Rust 1.90 or newer.
 
 ## Playing
 

@@ -699,7 +699,7 @@ mod tests {
                 let (w, h) = ((right - left + 1) as usize, (bottom - top + 1) as usize);
                 let rgba = poser.pose(0, &pose, x - cx, y - cy, w, h);
                 let (mut sum, mut moment) = (0.0f32, 0.0f32);
-                for (i, px) in rgba.chunks_exact(4).enumerate() {
+                for (i, px) in rgba.as_chunks::<4>().0.iter().enumerate() {
                     let weight = f32::from(px[3]) * (f32::from(px[0]) + f32::from(px[1]) + f32::from(px[2]));
                     sum += weight;
                     moment += weight * (x + (i % w) as f32);

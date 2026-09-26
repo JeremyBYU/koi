@@ -49,7 +49,7 @@ jobs:
           printf '[audio]\nenabled = false\n[pond]\nseed = 7\n' > "$RUNNER_TEMP/koi.toml"
           printf '#!/bin/sh\n"%s/target/release/koi" --config "%s/koi.toml" 2> "%s/koi.err"\necho "exit $?" >> "%s/koi.err"\nsleep 600\n' "$PWD" "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" > "$RUNNER_TEMP/run.sh"
           chmod +x "$RUNNER_TEMP/run.sh"
-          open -na Ghostty.app --args --command="$RUNNER_TEMP/run.sh" --window-width=160 --window-height=45
+          open -na /Applications/Ghostty.app --args --command="$RUNNER_TEMP/run.sh" --window-width=160 --window-height=45
           sleep 25
           screencapture -x "$RUNNER_TEMP/koi-macos.png"
           cat "$RUNNER_TEMP/koi.err" || true
@@ -63,6 +63,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-      - uses: dtolnay/rust-toolchain@1.88
+      - uses: dtolnay/rust-toolchain@1.90
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace --all-targets

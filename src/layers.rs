@@ -357,7 +357,7 @@ pub fn blend(dst: &mut [u8], dst_w: usize, src: &[u8], w: usize, x: i32, y: i32,
     for (sy, row) in src.chunks_exact(w * 4).enumerate() {
         for dy in sy * k..(sy + 1) * k {
             let Some(dy) = at(y, dy, dst_h) else { continue };
-            for (sx, px) in row.chunks_exact(4).enumerate() {
+            for (sx, px) in row.as_chunks::<4>().0.iter().enumerate() {
                 let a = u32::from(px[3]) * alpha / 255;
                 if a == 0 {
                     continue;
