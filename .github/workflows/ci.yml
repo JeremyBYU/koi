@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev mesa-vulkan-drivers
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      # lavapipe, a Vulkan driver on the CPU, so the GPU and CPU renderers are compared.
+      - run: echo "VK_ICD_FILENAMES=$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)" >> "$GITHUB_ENV"
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  # Runs koi in Ghostty on the runner's desktop and saves a screenshot, since nobody here has
+  # a Mac to look at it on.
+  macos-screenshot:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
+      - run: brew install --cask ghostty
+      - name: Run koi in Ghostty
+        run: |
+          printf '[audio]\nenabled = false\n[pond]\nseed = 7\n' > "$RUNNER_TEMP/koi.toml"
+          printf '#!/bin/sh\n"%s/target/release/koi" --config "%s/koi.toml" 2> "%s/koi.err"\necho "exit $?" >> "%s/koi.err"\nsleep 600\n' "$PWD" "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" > "$RUNNER_TEMP/run.sh"
+          chmod +x "$RUNNER_TEMP/run.sh"
+          open -na Ghostty.app --args --command="$RUNNER_TEMP/run.sh" --window-width=160 --window-height=45
+          sleep 25
+          screencapture -x "$RUNNER_TEMP/koi-macos.png"
+          cat "$RUNNER_TEMP/koi.err" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: koi-macos-screenshot
+          path: ${{ runner.temp }}/koi-macos.png
+
+  msrv:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --workspace --all-targets

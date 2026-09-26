@@ -12,16 +12,25 @@ koi draws with the Kitty graphics protocol, so the pond is real images, not text
 
 ## Install
 
-koi runs on Linux in a terminal with the Kitty graphics protocol, such as [Ghostty](https://ghostty.org) or [Kitty](https://sw.kovidgoyal.net/kitty/).
+koi runs on Linux and macOS in a terminal with the Kitty graphics protocol, such as [Ghostty](https://ghostty.org) or [Kitty](https://sw.kovidgoyal.net/kitty/).
 
-Download the archive for your machine (`x86_64` or `aarch64`) from the Releases page, unpack it and run `koi`:
+Download the archive for your system from the Releases page, unpack it and run `koi`:
 
 ```sh
 tar xzf koi-0.1.0-x86_64-linux.tar.gz
 ./koi-0.1.0-x86_64-linux/koi
 ```
 
-The binary is one file of about 14 MB with three pieces of music built in. It needs glibc 2.17 or newer and `libasound.so.2`, which every Linux desktop has. A GPU is optional: koi renders with Vulkan when it can and on the CPU when it can't, and both look the same. Put `koi` anywhere on your `PATH`, such as `~/.local/bin`.
+| System | Archive |
+|---|---|
+| Linux on Intel or AMD | `koi-<version>-x86_64-linux.tar.gz` |
+| Linux on ARM | `koi-<version>-aarch64-linux.tar.gz` |
+| macOS (Apple silicon and Intel) | `koi-<version>-macos.tar.gz` |
+
+The binary is one file of about 14 MB with three pieces of music built in. Put it anywhere on your `PATH`, such as `~/.local/bin`. A GPU is optional: koi renders with Vulkan or Metal when it can and on the CPU when it can't, and both look the same.
+
+- On Linux it needs glibc 2.17 or newer and `libasound.so.2`, which every desktop has.
+- On macOS the binary is not signed. If you downloaded the archive with a browser, clear the quarantine flag once: `xattr -d com.apple.quarantine koi`.
 
 If your terminal can't show the images, koi says so and exits. That includes a terminal without the Kitty protocol, and any terminal over SSH, since the images travel through shared memory on the same machine.
 
@@ -38,7 +47,7 @@ This downloads them into `~/.local/share/koi-pond/music`, where koi looks first.
 ### Build from source
 
 ```sh
-sudo apt install libasound2-dev    # ALSA headers, for Debian and Ubuntu
+sudo apt install libasound2-dev    # ALSA headers, on Debian and Ubuntu only
 cargo build --release
 target/release/koi
 ```

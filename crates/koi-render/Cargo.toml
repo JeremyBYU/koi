@@ -13,3 +13,6 @@ koi-sim.workspace = true
 koi-theme.workspace = true
 pollster.workspace = true
 wgpu.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+wgpu = { workspace = true, features = ["metal"] }

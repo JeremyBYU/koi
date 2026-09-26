@@ -8,9 +8,12 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD as B64;
 use std::collections::VecDeque;
 use std::ffi::CString;
+#[cfg(target_os = "linux")]
 use std::fs::OpenOptions;
 use std::io;
+#[cfg(target_os = "linux")]
 use std::os::fd::AsRawFd;
+#[cfg(target_os = "linux")]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 use std::sync::OnceLock;
@@ -212,7 +215,7 @@ pub fn placeholders(out: &mut Vec<u8>, id: u8, row: usize, col: usize, n: usize)
 /// Errors name what is missing. A terminal that answers neither within `timeout` passes.
 pub fn probe_images(timeout: Duration) -> Result<(), String> {
     let name = format!("/{SHM_PREFIX}{}-probe", std::process::id());
-    std::fs::write(format!("/dev/shm{name}"), [0u8; 4]).map_err(|e| format!("cannot write /dev/shm ({e})"))?;
+    write_shm(&name, &[0; 4]).map_err(|e| format!("cannot create shared memory ({e})"))?;
     let mut original: libc::termios = unsafe { std::mem::zeroed() };
     if unsafe { libc::tcgetattr(0, &mut original) } != 0 {
         unlink(&name);
@@ -257,8 +260,9 @@ pub fn winsize() -> (usize, usize, usize, usize) {
 /// wait early. An escape sequence can be split across two reads.
 pub fn read_input(timeout: Duration) -> Vec<u8> {
     let mut fds = libc::pollfd { fd: 0, events: libc::POLLIN, revents: 0 };
-    let ts = libc::timespec { tv_sec: timeout.as_secs().try_into().unwrap_or(libc::time_t::MAX), tv_nsec: timeout.subsec_nanos().into() };
-    if unsafe { libc::ppoll(&mut fds, 1, &ts, std::ptr::null()) } <= 0 {
+    // Rounded up, so a wait for a frame deadline never wakes before it.
+    let ms = libc::c_int::try_from(timeout.as_micros().div_ceil(1000)).unwrap_or(libc::c_int::MAX);
+    if unsafe { libc::poll(&mut fds, 1, ms) } <= 0 {
         return Vec::new();
     }
     let mut buf = vec![0u8; 4096];
@@ -268,9 +272,10 @@ pub fn read_input(timeout: Duration) -> Vec<u8> {
 }
 
 /// Removes shm objects left by koi processes that no longer exist (killed with SIGKILL, say).
+/// Only Linux can list them, in /dev/shm; elsewhere this does nothing.
 pub fn remove_stale_shm() {
-    let Ok(entries) = std::fs::read_dir("/dev/shm") else { return };
-    for entry in entries.flatten() {
+    #[cfg(target_os = "linux")]
+    for entry in std::fs::read_dir("/dev/shm").into_iter().flatten().flatten() {
         let name = entry.file_name();
         let Some(pid) = name.to_str().and_then(|n| n.strip_prefix(SHM_PREFIX)).and_then(|rest| rest.split('-').next()).and_then(|pid| pid.parse::<libc::pid_t>().ok()) else {
             continue;
@@ -282,13 +287,19 @@ pub fn remove_stale_shm() {
     }
 }
 
-/// Image pages that stay mapped and faulted in. Each image is copied into the next slot, which
-/// is then hard-linked under a fresh name and sent with `t=s`. Ghostty unlinks that name after
-/// reading it; the slot's own name keeps the pages alive. Every name is removed on drop.
+/// Shared-memory images sent with `t=s`, each under a fresh name that the terminal unlinks
+/// after reading it. On Linux the pages stay mapped and faulted in: each image is copied into
+/// the next slot, a file in /dev/shm, which is then hard-linked under the fresh name, and the
+/// slot's own name keeps the pages alive. Elsewhere each image is a new shm object. Every name
+/// is removed on drop.
 pub struct ShmRing {
+    /// Empty outside Linux.
     slots: Vec<(PathBuf, *mut u8)>,
+    /// How many sent names to keep before unlinking the oldest, which the terminal has read.
+    keep: usize,
     prefix: String,
     capacity: usize,
+    #[cfg(target_os = "linux")]
     next: usize,
     seq: u64,
     links: VecDeque<String>,
@@ -297,11 +308,24 @@ pub struct ShmRing {
 }
 
 impl ShmRing {
-    /// Creates `slots` files of `capacity` bytes each. An image sent later must fit one slot.
-    /// Ghostty must have read an image before `slots` more are sent after it.
+    /// Creates `slots` slots of `capacity` bytes each. An image sent later must fit one slot.
+    /// The terminal must have read an image before `slots` more are sent after it.
     pub fn new(slots: usize, capacity: usize) -> io::Result<ShmRing> {
         let prefix = format!("{SHM_PREFIX}{}-r{}", std::process::id(), RINGS.fetch_add(1, Ordering::Relaxed));
-        let mut ring = ShmRing { slots: Vec::new(), prefix, capacity, next: 0, seq: 0, links: VecDeque::new(), bytes: 0 };
+        let ring = ShmRing {
+            slots: Vec::new(),
+            keep: slots.max(1),
+            prefix,
+            capacity,
+            #[cfg(target_os = "linux")]
+            next: 0,
+            seq: 0,
+            links: VecDeque::new(),
+            bytes: 0,
+        };
+        #[cfg(target_os = "linux")]
+        let mut ring = ring;
+        #[cfg(target_os = "linux")]
         for k in 0..slots {
             let path = PathBuf::from(format!("/dev/shm/{}-slot{k}", ring.prefix));
             let file = OpenOptions::new().read(true).write(true).create(true).truncate(true).mode(0o600).open(&path)?;
@@ -322,23 +346,50 @@ impl ShmRing {
         if data.len() > self.capacity {
             return Err(io::Error::other(format!("image of {} bytes does not fit a {} byte ring slot", data.len(), self.capacity)));
         }
-        let (path, ptr) = &self.slots[self.next];
-        unsafe { std::slice::from_raw_parts_mut(*ptr, data.len()) }.copy_from_slice(data);
         self.seq += 1;
         let name = format!("/{}-{}", self.prefix, self.seq);
-        std::fs::hard_link(path, format!("/dev/shm{name}"))?;
+        #[cfg(target_os = "linux")]
+        {
+            let (path, ptr) = &self.slots[self.next];
+            unsafe { std::slice::from_raw_parts_mut(*ptr, data.len()) }.copy_from_slice(data);
+            std::fs::hard_link(path, format!("/dev/shm{name}"))?;
+            self.next = (self.next + 1) % self.slots.len();
+        }
+        #[cfg(not(target_os = "linux"))]
+        write_shm(&name, data)?;
         out.extend_from_slice(format!("\x1b_G{keys},t=s,S={},q=2;{}\x1b\\", data.len(), B64.encode(&name)).as_bytes());
         self.links.push_back(name);
         // The slot this link points at is about to be overwritten, so Ghostty has long read it.
-        while self.links.len() > self.slots.len() {
+        while self.links.len() > self.keep {
             if let Some(old) = self.links.pop_front() {
                 unlink(&old);
             }
         }
-        self.next = (self.next + 1) % self.slots.len();
         self.bytes += data.len();
         Ok(())
     }
+}
+
+/// Creates the shm object `name` holding `data`.
+fn write_shm(name: &str, data: &[u8]) -> io::Result<()> {
+    let c_name = CString::new(name).map_err(io::Error::other)?;
+    let fd = unsafe { libc::shm_open(c_name.as_ptr(), libc::O_CREAT | libc::O_EXCL | libc::O_RDWR, 0o600u32) };
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let len = libc::off_t::try_from(data.len()).map_err(io::Error::other)?;
+    let ptr = if unsafe { libc::ftruncate(fd, len) } == 0 { unsafe { libc::mmap(std::ptr::null_mut(), data.len(), libc::PROT_READ | libc::PROT_WRITE, libc::MAP_SHARED, fd, 0) } } else { libc::MAP_FAILED };
+    let result = if ptr == libc::MAP_FAILED {
+        let e = io::Error::last_os_error();
+        unsafe { libc::shm_unlink(c_name.as_ptr()) };
+        Err(e)
+    } else {
+        unsafe { std::slice::from_raw_parts_mut(ptr.cast::<u8>(), data.len()) }.copy_from_slice(data);
+        unsafe { libc::munmap(ptr, data.len()) };
+        Ok(())
+    };
+    unsafe { libc::close(fd) };
+    result
 }
 
 fn unlink(name: &str) {
@@ -467,6 +518,40 @@ pub fn parse_input(input: &[u8]) -> (Vec<Input>, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A sent image is a shm object under a fresh name, holding its bytes until the terminal
+    /// unlinks it, and dropping the ring removes every name the terminal left.
+    #[test]
+    fn ring_sends_shm_objects() {
+        let mut ring = ShmRing::new(2, 16).expect("ring");
+        let mut out = Vec::new();
+        for image in [[1u8; 8], [2; 8], [3; 8]] {
+            ring.transmit(&mut out, &image, "a=t").expect("transmit");
+        }
+        assert!(ring.transmit(&mut out, &[0; 17], "a=t").is_err(), "an image larger than a slot is refused");
+        let names: Vec<String> = ring.links.iter().cloned().collect();
+        assert_eq!(names.len(), 2, "the oldest name is unlinked once two newer ones are out");
+        let read = |name: &str| -> Option<Vec<u8>> {
+            let c_name = CString::new(name).ok()?;
+            let fd = unsafe { libc::shm_open(c_name.as_ptr(), libc::O_RDONLY, 0o600u32) };
+            if fd < 0 {
+                return None;
+            }
+            let ptr = unsafe { libc::mmap(std::ptr::null_mut(), 8, libc::PROT_READ, libc::MAP_SHARED, fd, 0) };
+            unsafe { libc::close(fd) };
+            if ptr == libc::MAP_FAILED {
+                return None;
+            }
+            let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), 8) }.to_vec();
+            unsafe { libc::munmap(ptr, 8) };
+            Some(bytes)
+        };
+        assert_eq!(read(&names[1]), Some(vec![3; 8]));
+        let text = String::from_utf8(out).expect("UTF-8");
+        assert!(text.contains(&format!("t=s,S=8,q=2;{}", B64.encode(&names[1]))), "{text}");
+        drop(ring);
+        assert!(names.iter().all(|n| read(n).is_none()), "drop unlinks what is left");
+    }
 
     #[test]
     fn parses_mixed_input() {

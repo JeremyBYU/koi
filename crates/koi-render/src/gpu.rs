@@ -9,17 +9,17 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    /// Opens the most powerful Vulkan adapter. The error says why there is none, and the
-    /// caller falls back to the CPU renderers.
+    /// Opens the most powerful adapter: Vulkan, or Metal on macOS. The error says why there is
+    /// none, and the caller falls back to the CPU renderers.
     pub fn new() -> Result<Gpu, String> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor { backends: wgpu::Backends::VULKAN, ..wgpu::InstanceDescriptor::new_without_display_handle() });
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor { backends: wgpu::Backends::VULKAN | wgpu::Backends::METAL, ..wgpu::InstanceDescriptor::new_without_display_handle() });
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, ..Default::default() }))
-            .map_err(|e| format!("no Vulkan adapter: {e}"))?;
+            .map_err(|e| format!("no GPU adapter: {e}"))?;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
             required_limits: wgpu::Limits { max_storage_buffer_binding_size: adapter.limits().max_storage_buffer_binding_size, max_buffer_size: adapter.limits().max_buffer_size, ..Default::default() },
             ..Default::default()
         }))
-        .map_err(|e| format!("no Vulkan device: {e}"))?;
+        .map_err(|e| format!("no GPU device: {e}"))?;
         Ok(Gpu { adapter: adapter.get_info().name, device, queue })
     }
 
