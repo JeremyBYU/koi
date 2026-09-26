@@ -17,8 +17,8 @@ koi runs on Linux and macOS in any terminal. It looks best in one with the Kitty
 Download the archive for your system from the [latest release](https://github.com/JeremyBYU/koi/releases/latest), unpack it and run `koi`:
 
 ```sh
-tar xzf koi-0.1.0-x86_64-linux.tar.gz
-./koi-0.1.0-x86_64-linux/koi
+tar xzf koi-0.2.0-x86_64-linux.tar.gz
+./koi-0.2.0-x86_64-linux/koi
 ```
 
 | System | Archive |
