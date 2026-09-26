@@ -42,8 +42,7 @@ pub struct Shadow {
 }
 
 /// What a drop of food is. Each kind has its own look, handful, spread, cap on pieces in the
-/// water, float and sink times, notice range and koi reaction (research/hud/SPEC.md, "Food
-/// types"). There is no hunger meter and nothing to score: uneaten food fades.
+/// water, float and sink times, notice range and koi reaction. There is no hunger meter and nothing to score: uneaten food fades.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum FoodKind {
     /// Ochre beads, 1 to 3 per drop. The nearest koi glide in at feeding speed and gulp.
@@ -141,7 +140,7 @@ const CALM_FEED_TURN: f32 = 70.0 * PI / 180.0;
 /// How deep a koi follows sinking food, as a fraction of the food's own depth.
 const DIVE: f32 = 0.8;
 
-// Behaviour, in body lengths (BL) and seconds. The numbers come from research/koi.md.
+// Behaviour, in body lengths (BL) and seconds, from how real koi swim in a calm pond.
 const CRUISE: f32 = 0.35;
 const CRUISE_CAP: f32 = 0.5;
 const FEED_CAP: f32 = 1.2;
@@ -318,7 +317,7 @@ pub struct School {
     /// Splashes caused since the caller last drained this. Food landing and being eaten
     /// makes rings; every swimming koi adds a small wake each step.
     pub splashes: Vec<Splash>,
-    /// Multiplies every swimming speed. 1 is the calm pace from research/koi.md.
+    /// Multiplies every swimming speed. 1 is a calm koi's pace.
     pub speed: f32,
     /// Divides turn rates and stretches steering smoothing and the gait. Higher is lazier.
     pub calmness: f32,

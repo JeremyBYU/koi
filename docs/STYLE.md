@@ -54,7 +54,7 @@ The line runs round the body and the fin roots. The translucent fins have none. 
 
 ## How the palette slots are used
 
-Every theme resolves the same 24 slots. The first 14 are required, the other 10 are derived from them when a theme leaves them out (the rules are in `palette()` in `crates/koi-theme/src/lib.rs` and in research/style/SYSTEM.md). The water renderer blends them in linear light.
+Every theme resolves the same 22 color slots. The first 14 are required, the other 8 are derived from them when a theme leaves them out (the rules are in docs/THEMES.md). The water renderer blends them in linear light.
 
 | Slot | Used for |
 |---|---|
@@ -75,7 +75,7 @@ Every theme resolves the same 24 slots. The first 14 are required, the other 10 
 
 ## Themes
 
-Each theme is one TOML file in `themes/`, compiled into the binary. `themes/summer-garden.toml` is the root: it lists every key with its default and a comment, and every other theme lists only what it changes. research/style/SYSTEM.md is the full design: every key, where it runs, the merge rules and the readability check. `koi --list-themes` lists them.
+Each theme is one TOML file in `themes/`, compiled into the binary. `themes/summer-garden.toml` is the root: it lists every key with its default and a comment, and every other theme lists only what it changes. docs/THEMES.md describes every key, the merge rules and how to keep koi readable. `koi --list-themes` lists them.
 
 | Id | Family and time | Look |
 |---|---|---|

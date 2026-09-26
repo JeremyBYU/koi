@@ -59,7 +59,7 @@ seed = 0
 #   [palette]
 #   koi_red = "#EE6343"
 # Theme files and this file are reloaded when they change. Changes to [render], [audio],
-# pond.koi and pond.seed apply on the next start.
+# hud.hover, input.mouse, pond.koi and pond.seed apply on the next start.
 name = "summer-garden"
 
 [hud]
@@ -82,7 +82,8 @@ hold_secs = 4.0
 [audio]
 enabled = true
 # Every mp3 and ogg in this folder plays in shuffled order. tracks.json there adds titles.
-# Empty plays the music that comes with the game.
+# Empty looks in $XDG_DATA_HOME/koi-pond/music (or ~/.local/share/koi-pond/music), where
+# scripts/fetch-music.sh puts the game's music, then in a music folder beside the binary.
 music_dir = ""
 # Music volume, 0.0 to 1.0.
 volume = 0.7
@@ -259,15 +260,6 @@ pub fn load(explicit: Option<&Path>) -> Result<(Config, Vec<String>), String> {
                 continue;
             };
             for (key, value) in values {
-                // hud.enabled became hud.show.
-                let (key, value) = match (section.as_str(), key.as_str(), value) {
-                    ("hud", "enabled", toml::Value::Boolean(on)) => {
-                        let show = if on { "always" } else { "hidden" };
-                        warnings.push(format!("{}: `hud.enabled` is now `hud.show`; using show = \"{show}\"", path.display()));
-                        ("show".to_string(), toml::Value::from(show))
-                    }
-                    (_, _, value) => (key, value),
-                };
                 let Some(default) = table.get(&section).and_then(|s| s.get(&key)).cloned() else {
                     warnings.push(format!("{}: `{section}.{key}` unknown key; ignored", path.display()));
                     continue;
@@ -285,7 +277,18 @@ pub fn load(explicit: Option<&Path>) -> Result<(Config, Vec<String>), String> {
     }
     let mut config = Config::deserialize(table).map_err(|e| format!("config: {e}"))?;
     if config.audio.music_dir.as_os_str().is_empty() {
-        config.audio.music_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/music");
+        let data = match std::env::var_os("XDG_DATA_HOME") {
+            Some(dir) if !dir.is_empty() => Some(PathBuf::from(dir)),
+            _ => std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")),
+        }
+        .map(|d| d.join("koi-pond/music"));
+        let exe_dir = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf));
+        // Beside the binary as unpacked from a release archive, under an install prefix, and
+        // the repository's own assets/music for a binary in target/release.
+        let beside = exe_dir.iter().flat_map(|d| [d.join("music"), d.join("../share/koi-pond/music"), d.join("../../assets/music")]);
+        let candidates: Vec<PathBuf> = data.iter().cloned().chain(beside).collect();
+        // With none of them there, the stats line names the first place to put music.
+        config.audio.music_dir = candidates.iter().find(|d| d.is_dir()).or(candidates.first()).cloned().unwrap_or_default();
     }
     Ok((config, warnings))
 }
@@ -297,6 +300,18 @@ impl Config {
         for secs in [self.fps.input_secs, self.fps.ripple_secs, f64::from(self.hud.peek_secs), f64::from(self.hud.hold_secs)] {
             if !(0.0..=86_400.0).contains(&secs) {
                 return Err(format!("expects seconds from 0 to 86400, got {secs}"));
+            }
+        }
+        // Each koi and each water pixel costs shared memory, which is RAM.
+        if self.pond.koi > 50 {
+            return Err(format!("expects at most 50 koi, got {}", self.pond.koi));
+        }
+        if self.render.water_px > 16 || self.render.fish_px > 64 {
+            return Err(format!("expects water_px up to 16 and fish_px up to 64, got {} and {}", self.render.water_px, self.render.fish_px));
+        }
+        for level in [self.audio.volume, self.audio.ambient_volume] {
+            if !(0.0..=1.0).contains(&level) {
+                return Err(format!("expects a level from 0.0 to 1.0, got {level}"));
             }
         }
         // Keys are matched a byte at a time, and the terminal sends any other character as
@@ -319,7 +334,7 @@ mod tests {
     #[test]
     fn bad_values_warn_and_keep_the_default() {
         let path = std::env::temp_dir().join(format!("koi-config-test-{}.toml", std::process::id()));
-        let text = "bogus = 1\nhud = 3\n[fps]\nfocused = \"fast\"\nripple_secs = 5\ninput_secs = -1\nfrom = 2\n[render]\nbackend = \"vulkan\"\n[pond]\nkoi = -1\n[input]\nfeed = \"ff\"\nquit = \"é\"\nfood = [\"1\", \"2\"]\nstats = \"x\"\n";
+        let text = "bogus = 1\nhud = 3\n[fps]\nfocused = \"fast\"\nripple_secs = 5\ninput_secs = -1\nfrom = 2\n[render]\nbackend = \"vulkan\"\n[pond]\nkoi = -1\n[audio]\nambient_volume = 3\n[input]\nfeed = \"ff\"\nquit = \"é\"\nfood = [\"1\", \"2\"]\nstats = \"x\"\n";
         std::fs::write(&path, text).expect("write temp config");
         let loaded = load(Some(&path));
         std::fs::remove_file(&path).expect("remove temp config");
@@ -330,19 +345,6 @@ mod tests {
         assert_eq!((config.input.feed, config.input.quit, config.input.food, config.input.stats), ('f', 'q', ['1', '2', '3', '4', '5'], 'x'));
         assert!(!config.audio.music_dir.as_os_str().is_empty());
         let keys: Vec<&str> = warnings.iter().map(|w| w.strip_prefix(&format!("{}: `", path.display())).and_then(|w| w.split('`').next()).expect("names the file and key")).collect();
-        assert_eq!(keys, ["bogus", "fps.focused", "fps.from", "fps.input_secs", "hud", "input.feed", "input.food", "input.quit", "pond.koi", "render.backend"]);
-    }
-
-    /// The old `hud.enabled = false` still hides the HUD, with a warning naming the new key.
-    #[test]
-    fn hud_enabled_becomes_show() {
-        let path = std::env::temp_dir().join(format!("koi-config-enabled-{}.toml", std::process::id()));
-        std::fs::write(&path, "[hud]\nenabled = false\n").expect("write temp config");
-        let loaded = load(Some(&path));
-        std::fs::remove_file(&path).expect("remove temp config");
-        let (config, warnings) = loaded.expect("an old key is not an error");
-        assert!(config.hud.show == Show::Hidden);
-        assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].contains("`hud.enabled` is now `hud.show`"), "{}", warnings[0]);
+        assert_eq!(keys, ["audio.ambient_volume", "bogus", "fps.focused", "fps.from", "fps.input_secs", "hud", "input.feed", "input.food", "input.quit", "pond.koi", "render.backend"]);
     }
 }

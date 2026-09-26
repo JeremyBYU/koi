@@ -1,5 +1,4 @@
-//! The HUD's stones and icons, painted on the CPU from the active theme. research/hud/SPEC.md
-//! ("Look") describes them: soft painted stones for painterly themes, stepped pixel stones on
+//! The HUD's stones and icons, painted on the CPU from the active theme: soft painted stones for painterly themes, stepped pixel stones on
 //! a fine HUD grid for pixel themes. The binary decides what is shown where; this module only
 //! paints one element at a time.
 

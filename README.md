@@ -70,7 +70,7 @@ The pond remembers the last theme, the volume and mute between runs, in `$XDG_ST
 | Ctrl-L | In tmux, write the pond's cells again |
 | `q`, Ctrl-C | Quit |
 
-Every key except `Esc` and Ctrl-C can be changed in the `[input]` section of the config.
+Every key except `Esc`, Ctrl-C and Ctrl-L can be changed in the `[input]` section of the config.
 
 ## The HUD
 
@@ -157,7 +157,7 @@ A theme has four tables:
 | `[style]` | How it is drawn: pixel size, tone steps, outlines, grain, dither, caustics, glints. |
 | `[scene]` | What is in it: pond floor, rim, bank, pads and flowers, foliage, drifting petals, weather. |
 
-[themes/summer-garden.toml](themes/summer-garden.toml) has every key with its default and a comment. research/style/SYSTEM.md explains what each key does. Save the file while koi is running and the pond repaints in place. A mistake in a theme shows as a warning on the top line, and koi keeps the last good theme.
+[themes/summer-garden.toml](themes/summer-garden.toml) has every key with its default and a comment. [docs/THEMES.md](docs/THEMES.md) explains what each key does. Save the file while koi is running and the pond repaints in place. A mistake in a theme shows as a warning on the top line, and koi keeps the last good theme.
 
 ## Configuration
 
@@ -195,7 +195,7 @@ hover = true
 volume = 0.4
 ```
 
-A bad value does not stop the game. It shows as a warning on the top line naming the file and key, prints again on exit, and the default is used. Changes to `[fps]`, `[input]`, `[theme]`, `[hud]`, `pond.speed` and `pond.calmness` apply while the game runs. `[render]`, `[audio]`, `hud.hover`, `pond.koi` and `pond.seed` apply on the next start. docs/ARCHITECTURE.md has a table of every key.
+A bad value does not stop the game. It shows as a warning on the top line naming the file and key, prints again on exit, and the default is used. Changes to `[fps]`, `[input]`, `[theme]`, `[hud]`, `pond.speed` and `pond.calmness` apply while the game runs. `[render]`, `[audio]`, `hud.hover`, `input.mouse`, `pond.koi` and `pond.seed` apply on the next start. docs/ARCHITECTURE.md has a table of every key.
 
 ## tmux
 
@@ -245,7 +245,7 @@ The frame rate adapts. While the window is focused, or while something is happen
 
 ## Performance
 
-Most of the cost of an animated pond is in the terminal, not in koi. Before building koi I measured prototypes in a 160x45 Ghostty window under XWayland, with CPU in percent of one core. [proto/perf/RESULTS.md](proto/perf/RESULTS.md) has the full table.
+Most of the cost of an animated pond is in the terminal, not in koi. Before building koi I measured prototypes in a 160x45 Ghostty window under XWayland, with CPU in percent of one core. [docs/PERFORMANCE.md](docs/PERFORMANCE.md) has the full table.
 
 | Prototype | Ghostty | Game | Total |
 |---|---|---|---|

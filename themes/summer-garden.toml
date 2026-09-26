@@ -1,6 +1,6 @@
 # Summer Garden is the root theme. It holds every key with its default, and a theme
 # with no `extends` extends it. Other themes list only what they change.
-# See research/style/SYSTEM.md for what each key does and where it lands in the code.
+# docs/THEMES.md describes every key.
 
 # These six belong to the file they are written in and are never inherited.
 name = "Summer Garden"
@@ -26,7 +26,7 @@ koi_white = "#FBF6EC"
 koi_red = "#E8502E"
 koi_sumi = "#2A2630"
 ogon = "#F2B63D"
-# Derived when unset (rules in SYSTEM.md). Set here to match the original palette.
+# Derived when unset (rules in docs/THEMES.md). Set here to match the original palette.
 # A derived slot applies to the file that sets it: children derive their own.
 # outline and cloud are left to their rules.
 asagi_blue = "#6E93B5"

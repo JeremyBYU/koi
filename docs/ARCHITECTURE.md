@@ -1,6 +1,6 @@
 # Architecture
 
-`koi` is a Rust binary built from a Cargo workspace of six crates. It runs in its own Ghostty window and draws with the Kitty graphics protocol. Build it with `cargo build --release` and run `target/release/koi`. Plain `cargo build`, `cargo test` and `cargo clippy` at the root cover every crate.
+`koi` is a Rust binary built from a Cargo workspace of six crates. It runs in a terminal with the Kitty graphics protocol, such as Ghostty, directly or inside tmux. Build it with `cargo build --release` and run `target/release/koi`. Plain `cargo build`, `cargo test` and `cargo clippy` at the root cover every crate.
 
 ## Crates
 
@@ -11,11 +11,11 @@
 | `koi-render` | `crates/koi-render` | The headless Vulkan device (`Gpu`), the water (`Water`, `water.wgsl`) and the koi sprites (`Poser`, `koi.wgsl`), each with a GPU and a CPU path, painted from a `Theme`. The pond layout comes from `Layout::new(w, h, seed)`, which never sees the theme. Koi outlines, and the fade of a diving koi, are drawn in the pose pass. Pixel themes: hard-edged koi, dither, dash glints and the palette lock table. Weather: rain, mist, fireflies. Food sprites (`food_sprite`) and HUD stones and icons (`hud::Look`). | `koi-sim`, `koi-theme`, wgpu |
 | `koi-term` | `crates/koi-term` | Raw mode, alternate screen, focus and mouse reporting (`report_motion` adds pointer motion for the HUD's hover), restore on exit and on panic, signals, `winsize`, `read_input`, `parse_input` (keys, clicks, scroll, motion, a lone Esc), the shm ring, removal of shm left by killed runs, and for tmux the passthrough wrapper and Unicode placeholder cells. | libc, base64 |
 | `koi-audio` | `crates/koi-audio` | Music with crossfades and per-track loudness normalization, the generated ambient layer and the food chimes, one per food kind on the yo scale, on their own threads. | `koi-sim`, rodio, symphonia |
-| `koi-pond` | root, `src/` | The `koi` binary: `main.rs` (arguments, backend choice, the frame loop, input handling, theme switching and hot reload, the error toast, the adaptive frame rate, the `d` stats line), `hud.rs` (the HUD from research/hud/SPEC.md: its state machine and timers, hit tests, and its images, ids 60 to 67 at z=-2), `config.rs` (the TOML config), `state.rs` (theme, volume and mute, remembered between runs) and `layers.rs` (Kitty images and placements, the pixel themes' scaling up and snapping, and the single frame of tmux mode). | all of the above, serde, toml |
+| `koi-pond` | root, `src/` | The `koi` binary: `main.rs` (arguments, backend choice, the frame loop, input handling, theme switching and hot reload, the error toast, the adaptive frame rate, the `d` stats line), `hud.rs` (the HUD: its state machine and timers, hit tests, and its images, ids 60 to 67 at z=-2), `config.rs` (the TOML config), `state.rs` (theme, volume and mute, remembered between runs) and `layers.rs` (Kitty images and placements, the pixel themes' scaling up and snapping, and the single frame of tmux mode). | all of the above, serde, toml |
 
 The water height field is in `koi-render`, not `koi-sim`, because on the GPU path it lives in GPU buffers and steps in `water.wgsl`. `koi-sim` only produces the splashes that disturb it.
 
-Shared dependency versions are in `[workspace.dependencies]` in the root `Cargo.toml`. The crates under `proto/` are separate prototypes and are excluded from the workspace.
+Shared dependency versions are in `[workspace.dependencies]` in the root `Cargo.toml`.
 
 `cargo doc --workspace --no-deps` builds the API docs. Every library crate has `#![warn(missing_docs)]`.
 
@@ -46,7 +46,7 @@ Input goes to the HUD first (`Hud::input`). What it does not take (a click on th
 
 At start `main.rs` loads a `Catalog` (the built-in themes, then `~/.config/koi-pond/themes/*.toml` over them) and resolves the starting theme: `--theme`, else the theme remembered in `$XDG_STATE_HOME/koi-pond/state.toml` if config.toml still names the theme it named when that was saved, else `theme.name`. A theme that fails to resolve falls back to the built-in `summer-garden` with a warning. Debug builds read the built-in themes from `themes/` on disk, so edits show without a rebuild.
 
-A switch (`t`, `T`, `l`, `L`, a HUD tray pick, `r`, or a changed file) repaints in place: `Water::set_theme` repaints the statics with the same seed and keeps the waves, `Poser::recolor` repaints the koi bodies, and `Layers::recolor` re-sends the food images. A switch that changes `style.pixel_px` (painted to pixel, or one pixel size to another) needs a new grid, so `build` runs with the current scene: `Water::regrid` moves the water to the new grid and resamples the waves onto it, and the poser and layers are made again, while the school carries over. The simulation is untouched, so every koi keeps its place. A switch to another theme is saved to the state file, and `Hud::set_theme` restyles the HUD and peeks the scene or time stone. Once a second the loop compares the modification times of the current theme's files, the user theme folder and config.toml; a change reloads config.toml and the catalog, then re-resolves. A reload applies `[fps]`, `[input]`, `[theme]`, `[hud]` (but `hud.hover`), `pond.speed` and `pond.calmness`. `[render]`, `[audio]`, `hud.hover`, `pond.koi` and `pond.seed` apply on the next start.
+A switch (`t`, `T`, `l`, `L`, a HUD tray pick, `r`, or a changed file) repaints in place: `Water::set_theme` repaints the statics with the same seed and keeps the waves, `Poser::recolor` repaints the koi bodies, and `Layers::recolor` re-sends the food images. A switch that changes `style.pixel_px` (painted to pixel, or one pixel size to another) needs a new grid, so `build` runs with the current scene: `Water::regrid` moves the water to the new grid and resamples the waves onto it, and the poser and layers are made again, while the school carries over. The simulation is untouched, so every koi keeps its place. A switch to another theme is saved to the state file, and `Hud::set_theme` restyles the HUD and peeks the scene or time stone. Once a second the loop compares the modification times of the current theme's files, the user theme folder and config.toml; a change reloads config.toml and the catalog, then re-resolves. A reload applies `[fps]`, `[input]` (but `input.mouse`), `[theme]`, `[hud]` (but `hud.hover`), `pond.speed` and `pond.calmness`. `[render]`, `[audio]`, `hud.hover`, `input.mouse`, `pond.koi` and `pond.seed` apply on the next start.
 
 The simulation works in water pixels: a grid of `water_px` pixels per cell width, with the height set by the real cell aspect. Koi, food and splashes all use it. `layers.rs` scales it to screen pixels. A painted theme renders the water on the same grid. A pixel theme renders it on its art grid, the window's screen pixels divided by `pixel_px` (rounded up), and `Water` scales the splashes and koi shadows it is given by `per_sim`, its pixels per simulation unit.
 
@@ -97,7 +97,7 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `pond.speed` | 1.0 | Swimming speed as a multiple of the calm default. |
 | `pond.calmness` | 1.0 | Higher is lazier: slower turns, softer steering, longer glides. |
 | `pond.seed` | 0 | 0 gives a new pond each start. Anything else repeats the same pond. |
-| `hud.show` | "always" | "always" keeps the row on screen, "auto" hides it until a HUD key, hover or `Tab`, "hidden" draws nothing but keeps the keys. `Tab` switches between "always" and "auto" until the pond closes, and a reload keeps that choice unless `hud.show` changed. The old `hud.enabled` still works with a warning: false is "hidden", true is "always". |
+| `hud.show` | "always" | "always" keeps the row on screen, "auto" hides it until a HUD key, hover or `Tab`, "hidden" draws nothing but keeps the keys. `Tab` switches between "always" and "auto" until the pond closes, and a reload keeps that choice unless `hud.show` changed. |
 | `hud.hover` | false | Resting the pointer in the bottom 4 rows for 0.5 s shows the row (mouse motion reports, mode 1003). |
 | `hud.align` | "center" | "center" or "left". |
 | `hud.fade` | true | Fade in and out; false shows and hides at once. |
@@ -132,7 +132,6 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `pixel_stones_are_hard_edged`, `ink_contrasts_with_every_theme` | `koi-render` | HUD stones in pixel themes have no soft alpha; HUD text reads on every theme's stones. |
 | `layout`, `peek_times_out`, `expanded_holds_while_pointed_at`, `clicks_and_trays`, `scene_tray_switches_family`, `one_time_family`, `help_card`, `short_window_only_peeks`, `volume_peeks_on_change`, `draw_sends_only_changes`, `dwell_escape_and_shrinking` | `koi-pond` (hud.rs) | The HUD's layout, timers, hover reveal, clicks, trays, keys, Esc order, collapse in a short window, and that it sends only what changed. They run with `hud.show = "auto"`. |
 | `always_keeps_the_row` | `koi-pond` (hud.rs) | With `hud.show = "always"` the row fades in at start and stays past Esc and the hold time, `Tab` switches to "auto" and back, and a short window only peeks. |
-| `hud_enabled_becomes_show` | `koi-pond` (config.rs) | `hud.enabled = false` gives `hud.show = "hidden"` and one warning naming the new key. |
 | `bad_values_warn_and_keep_the_default` | `koi-pond` (config.rs) | Unknown keys, wrong types, unknown names, negative seconds, non-ASCII keys and short arrays each warn with the file and key and keep the default, while good values beside them apply. |
 | `round_trip_and_the_remembered_theme` | `koi-pond` (state.rs) | The state file reads back what was saved, and the remembered theme gives way once config.toml names another. |
 | `subpixel_motion_is_even` | `koi-render` | A koi moved 0.1 sprite pixels per frame has its rendered centroid advance by about 0.1 every frame. It runs on the CPU path, and on the GPU path too when `VK_ICD_FILENAMES` is set. |
@@ -156,4 +155,13 @@ The mp3 files are not in git. `scripts/fetch-music.sh` downloads every track in 
 
 ## Building without libasound2-dev
 
-rodio needs ALSA at link time. If `libasound2-dev` is missing, `.cargo/config.toml` points pkg-config at a git-ignored shim in `.alsa-shim` (see proto/audio/NOTES.md for how to recreate it). With the package installed the shim is not needed.
+rodio links against ALSA, and its build finds it through pkg-config, which `libasound2-dev` provides. Without the package, a two-file shim over the runtime library works:
+
+```sh
+mkdir -p .alsa-shim
+ln -s /usr/lib/x86_64-linux-gnu/libasound.so.2 .alsa-shim/libasound.so
+printf 'libdir=${pcfiledir}\nName: alsa\nDescription: shim\nVersion: 1.2.0\nLibs: -L${libdir} -lasound\nCflags:\n' > .alsa-shim/alsa.pc
+PKG_CONFIG_PATH=$PWD/.alsa-shim cargo build --release
+```
+
+Both `.alsa-shim` and a `.cargo/config.toml` that sets `PKG_CONFIG_PATH` are git-ignored.

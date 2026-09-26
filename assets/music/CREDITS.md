@@ -1,6 +1,6 @@
 # Music credits
 
-All tracks by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/). No changes were made to the audio.
+All tracks by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/). The mp3 files are unchanged. The three tracks built into the koi binary (Clear Waters, Fresh Air and Kalimba Relaxation Music, in `builtin/`) were re-encoded from those mp3s to Ogg Vorbis at a lower bitrate, with no other change.
 
 Required credit line for each track:
 

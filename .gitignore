@@ -2,5 +2,6 @@ target/
 /.alsa-shim
 /assets/music/*.mp3
 /assets/music/*.ogg
-/proto/perf/results/
 /.cargo/config.toml
+/assets/music/*.part
+/dist/

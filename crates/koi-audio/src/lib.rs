@@ -1,5 +1,5 @@
-//! Music, the generated ambient layer and the food chimes, all on a `koi-audio` thread.
-//! Ported from proto/audio, plus per-track loudness normalization.
+//! Music with per-track loudness normalization, the generated ambient layer and the food
+//! chimes, all on a `koi-audio` thread.
 
 #![warn(missing_docs)]
 
@@ -61,7 +61,7 @@ pub enum Status {
         /// From tracks.json, or the file name.
         title: String,
     },
-    /// Why no music plays. The ambient layer and chimes still do.
+    /// Why nothing plays: there is no audio output.
     NoMusic(String),
     /// The volume changed.
     Volume {
@@ -107,9 +107,19 @@ impl Audio {
     }
 }
 
+/// Played when the music folder has none: three of the game's tracks, re-encoded to Ogg
+/// Vorbis to keep the binary small.
+const BUILT_IN: [(&str, &[u8]); 3] = [
+    ("Clear Waters", include_bytes!("../../../assets/music/builtin/clear-waters.ogg")),
+    ("Fresh Air", include_bytes!("../../../assets/music/builtin/fresh-air.ogg")),
+    ("Kalimba Relaxation Music", include_bytes!("../../../assets/music/builtin/kalimba-relaxation-music.ogg")),
+];
+
 struct Track {
+    /// A built-in track's path is only its name, for the loudness cache.
     path: PathBuf,
     title: String,
+    built_in: Option<&'static [u8]>,
 }
 
 struct Deck {
@@ -136,6 +146,7 @@ fn load_tracks(dir: &Path) -> Vec<Track> {
             Track {
                 title: entry.and_then(|m| m["title"].as_str()).map_or(stem, str::to_string),
                 path,
+                built_in: None,
             }
         })
         .collect()
@@ -156,6 +167,7 @@ fn run(config: Settings, events: Receiver<Event>, status: Sender<Status>) {
         }
         Err(e) => {
             let _ = status.send(Status::Error(format!("no audio output: {e}")));
+            let _ = status.send(Status::NoMusic(format!("no audio output: {e}")));
             while events.recv().is_ok() {}
             return;
         }
@@ -168,7 +180,7 @@ fn run(config: Settings, events: Receiver<Event>, status: Sender<Status>) {
 
     let mut tracks = load_tracks(&config.music_dir);
     if tracks.is_empty() {
-        let _ = status.send(Status::NoMusic(format!("no mp3/ogg in {}", config.music_dir.display())));
+        tracks = BUILT_IN.iter().map(|&(title, data)| Track { path: PathBuf::from(format!("built-in:{title}")), title: title.to_string(), built_in: Some(data) }).collect();
     }
     shuffle(&mut tracks, &mut rng);
 
@@ -177,7 +189,7 @@ fn run(config: Settings, events: Receiver<Event>, status: Sender<Status>) {
     let mut gains: HashMap<PathBuf, f32> = HashMap::new();
     let (gains_tx, gains_rx) = mpsc::channel();
     if config.normalize {
-        let paths: Vec<PathBuf> = tracks.iter().map(|t| t.path.clone()).collect();
+        let paths: Vec<(PathBuf, Option<&'static [u8]>)> = tracks.iter().map(|t| (t.path.clone(), t.built_in)).collect();
         let spawned = thread::Builder::new().name("koi-loudness".into()).spawn(move || measure_all(paths, gains_tx));
         if let Err(e) = spawned {
             let _ = status.send(Status::Error(format!("loudness thread: {e}")));
@@ -237,7 +249,7 @@ fn run(config: Settings, events: Receiver<Event>, status: Sender<Status>) {
             && (skip || current_ending)
         {
             next_index += 1;
-            match File::open(&track.path).map_err(|e| e.to_string()).and_then(|f| Decoder::try_from(f).map_err(|e| e.to_string())) {
+            match open(&track.path, track.built_in) {
                 Ok(decoder) => {
                     skip = false;
                     failures = 0;
@@ -272,7 +284,7 @@ fn run(config: Settings, events: Receiver<Event>, status: Sender<Status>) {
 
 /// Sends a gain for every path, in order. Gains are cached by path and file size in
 /// $XDG_CACHE_HOME/koi-pond/loudness.json, because decoding a whole track takes about a second.
-fn measure_all(paths: Vec<PathBuf>, gains: Sender<(PathBuf, f32)>) {
+fn measure_all(paths: Vec<(PathBuf, Option<&'static [u8]>)>, gains: Sender<(PathBuf, f32)>) {
     let cache_file = std::env::var_os("XDG_CACHE_HOME")
         .filter(|d| !d.is_empty())
         .map(PathBuf::from)
@@ -283,12 +295,15 @@ fn measure_all(paths: Vec<PathBuf>, gains: Sender<(PathBuf, f32)>) {
         .and_then(|f| fs::read_to_string(f).ok())
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default();
-    for path in paths {
+    for (path, built_in) in paths {
         let key = path.to_string_lossy().into_owned();
-        let bytes = fs::metadata(&path).map_or(0, |m| m.len());
+        let bytes = match built_in {
+            Some(data) => u64::try_from(data.len()).unwrap_or(0),
+            None => fs::metadata(&path).map_or(0, |m| m.len()),
+        };
         let gain = match cache.get(&key) {
             Some(&(cached_bytes, gain)) if cached_bytes == bytes => gain,
-            _ => match measure(&path) {
+            _ => match measure(&path, built_in) {
                 Some(gain) => {
                     cache.insert(key, (bytes, gain));
                     if let Some(file) = &cache_file
@@ -310,10 +325,19 @@ fn measure_all(paths: Vec<PathBuf>, gains: Sender<(PathBuf, f32)>) {
     }
 }
 
+/// Decodes a music file, or a built-in track from its bytes.
+fn open(path: &Path, built_in: Option<&'static [u8]>) -> Result<Box<dyn Source + Send>, String> {
+    let decoded: Box<dyn Source + Send> = match built_in {
+        Some(data) => Box::new(Decoder::builder().with_data(std::io::Cursor::new(data)).with_byte_len(u64::try_from(data.len()).unwrap_or(0)).with_mime_type("audio/ogg").build().map_err(|e| e.to_string())?),
+        None => Box::new(Decoder::try_from(File::open(path).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?),
+    };
+    Ok(decoded)
+}
+
 /// Gain that brings the track's gated RMS to TARGET_RMS without pushing its peak past
 /// PEAK_CEILING. 400 ms blocks below -70 dBFS (silence, fades) are left out of the mean.
-fn measure(path: &Path) -> Option<f32> {
-    let decoder = Decoder::try_from(File::open(path).ok()?).ok()?;
+fn measure(path: &Path, built_in: Option<&'static [u8]>) -> Option<f32> {
+    let decoder = open(path, built_in).ok()?;
     let block_len = decoder.sample_rate().get() as usize * usize::from(decoder.channels().get()) * 2 / 5;
     let (mut block, mut in_block, mut peak) = (0.0f64, 0, 0.0f32);
     let (mut sum, mut blocks) = (0.0f64, 0);
@@ -685,6 +709,16 @@ impl Source for Ambient {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every built-in track decodes all the way through and gets a loudness gain.
+    #[test]
+    fn built_in_tracks_decode() {
+        for (title, data) in BUILT_IN {
+            let decoder = open(Path::new(title), Some(data)).expect("decodes");
+            assert!(decoder.total_duration().is_some_and(|d| d > Duration::from_secs(60)), "{title}");
+            assert!(measure(Path::new(title), Some(data)).is_some_and(|gain| gain > 0.0), "{title}");
+        }
+    }
 
     /// Every kind's chime lands on the yo scale in some octave, so any mix of foods stays in
     /// key with the pad. Petals are the quietest and highest, seeds the lowest, and the treat

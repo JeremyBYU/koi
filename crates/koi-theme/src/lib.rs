@@ -1,6 +1,6 @@
 //! Themes: one TOML file per look, resolved through `extends` into a palette, light, style
 //! and scene. `themes/summer-garden.toml` is the root and lists every key with its default.
-//! research/style/SYSTEM.md is the design.
+//! docs/THEMES.md describes every key.
 //!
 //! The built-in themes are compiled in. Debug builds read them from the repository instead,
 //! so edits show without a rebuild. A user file with a built-in's id replaces it.
@@ -161,8 +161,7 @@ pub enum HighlightStyle {
     Dashes,
 }
 
-/// `[style]`: how shapes and light are drawn. research/style/SYSTEM.md says where each key
-/// runs: in `paint()` once per theme, per frame on both backends, or in the koi painter.
+/// `[style]`: how shapes and light are drawn.
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
 pub struct Style {
     /// Device pixels per art pixel, 4 to 8. 0 means painted, at `render.water_px`.

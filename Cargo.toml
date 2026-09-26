@@ -2,12 +2,13 @@
 members = ["crates/*"]
 # Plain cargo build, test and clippy at the root cover every crate.
 default-members = [".", "crates/*"]
-# The prototypes are standalone crates with their own lockfiles.
-exclude = ["proto"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+authors = ["Jeremy Castagno"]
 
 [workspace.dependencies]
 koi-audio = { path = "crates/koi-audio" }
@@ -28,8 +29,15 @@ wgpu = { version = "30.0.1", default-features = false, features = ["vulkan", "wg
 
 [package]
 name = "koi-pond"
+description = "A tranquil koi pond for terminals with the Kitty graphics protocol"
+readme = "README.md"
+keywords = ["koi", "terminal", "kitty-graphics", "ambient", "game"]
+categories = ["games", "command-line-utilities"]
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
 
 [[bin]]
 name = "koi"
@@ -44,5 +52,9 @@ koi-theme.workspace = true
 serde.workspace = true
 toml.workspace = true
 
-[profile.release]
-debug = false
+# The release archives: scripts/release.sh.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = true

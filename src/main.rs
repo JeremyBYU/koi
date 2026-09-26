@@ -21,7 +21,28 @@ use std::time::{Duration, Instant, SystemTime};
 /// The sharpest koi `fish_px = 0` gives on the CPU backend.
 const CPU_FISH_PX: usize = 10;
 
-const USAGE: &str = "usage: koi [--config PATH] [--theme NAME] [--list-themes] [--print-default-config]";
+const USAGE: &str = "usage: koi [--config PATH] [--theme NAME] [--list-themes] [--print-default-config] [--version] [-h | --help]";
+
+const HELP: &str = "A koi pond for terminals with the Kitty graphics protocol.
+
+Options:
+  --config PATH             Read this config file instead of ~/.config/koi-pond/config.toml
+  --theme NAME              Start in this theme
+  --list-themes             List the themes
+  --print-default-config    Print the full config with every key explained
+  --version                 Print the version
+
+Default keys (change them in the [input] section of the config):
+  click, f      drop food where you click, or somewhere random
+  1-5           pick the food: pellets, flakes, petals, seeds, treat
+  t, T          next or previous scene
+  l, L          later or earlier time of day
+  n, m, +, -    next track, mute, volume
+  Tab           hide or show the HUD
+  ?             show the help card
+  r             reload the config and themes
+  d             show the frame rate
+  q, Ctrl-C     quit";
 
 fn main() -> ExitCode {
     let (mut config_path, mut theme_arg) = (None, None);
@@ -32,7 +53,7 @@ fn main() -> ExitCode {
                 Some(value) if arg == "--config" => config_path = Some(PathBuf::from(value)),
                 Some(value) => theme_arg = Some(value),
                 None => {
-                    eprintln!("{USAGE}");
+                    eprintln!("koi: `{arg}` needs a value\n{USAGE}");
                     return ExitCode::from(2);
                 }
             },
@@ -51,11 +72,15 @@ fn main() -> ExitCode {
                 return ExitCode::SUCCESS;
             }
             "-h" | "--help" => {
-                println!("{USAGE}\n\nKeys: click or f drops food, 1-5 picks it, Tab hides or shows the HUD, ? lists the keys, t/T scene, l/L time of day, r reload, d stats, q quits. See --print-default-config.");
+                println!("{USAGE}\n\n{HELP}");
+                return ExitCode::SUCCESS;
+            }
+            "-V" | "--version" => {
+                println!("koi {}", env!("CARGO_PKG_VERSION"));
                 return ExitCode::SUCCESS;
             }
             _ => {
-                eprintln!("{USAGE}");
+                eprintln!("koi: unknown argument `{arg}`\n{USAGE}");
                 return ExitCode::from(2);
             }
         }
@@ -98,6 +123,12 @@ fn main() -> ExitCode {
             eprintln!("koi: tmux passthrough is off, so the pond would stay blank. Run `tmux set -g allow-passthrough on`, and add that line to your tmux config (~/.tmux.conf or ~/.config/tmux/tmux.conf) to keep it.");
             return ExitCode::from(2);
         }
+    }
+    if tmux.is_none()
+        && let Err(e) = term::probe_images(Duration::from_secs(2))
+    {
+        eprintln!("koi: {e}");
+        return ExitCode::from(2);
     }
     let gpu = match cfg.render.backend {
         Backend::Gpu => match Gpu::new() {

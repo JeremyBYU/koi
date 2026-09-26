@@ -51,7 +51,8 @@ pub struct Layers {
     scaled: Vec<u8>,
     overlay: Option<String>,
     pub ring: ShmRing,
-    water_ring: ShmRing,
+    /// None in tmux, where the water is part of the one frame.
+    water_ring: Option<ShmRing>,
     pub renders: usize,
     tmux: Option<Tmux>,
 }
@@ -101,11 +102,10 @@ impl Layers {
         }
         largest = largest.max(crate::hud::largest_image(grid.cell_w, grid.cell_h));
         let water_bytes = 4 * if pixel > 0 { screen.0 * screen.1 } else { water.0 * water.1 };
-        // In tmux the one frame a frame goes through the main ring, and nothing through the
-        // water ring.
+        // In tmux the one frame a frame goes through the main ring.
         let (ring, water_ring) = match tmux {
-            Some(_) => (ShmRing::new(WATER_SLOTS, screen.0 * screen.1 * 4)?, ShmRing::new(0, 0)?),
-            None => (ShmRing::new(FoodKind::ALL.len() * FADE_LEVELS + school.fish.len() + 8 + RING_SPARE, largest)?, ShmRing::new(WATER_SLOTS, water_bytes)?),
+            Some(_) => (ShmRing::new(WATER_SLOTS, screen.0 * screen.1 * 4)?, None),
+            None => (ShmRing::new(FoodKind::ALL.len() * FADE_LEVELS + school.fish.len() + 8 + RING_SPARE, largest)?, Some(ShmRing::new(WATER_SLOTS, water_bytes)?)),
         };
         let mut layers = Layers {
             fish_px,
@@ -246,15 +246,16 @@ impl Layers {
     pub fn encode(&mut self, out: &mut Vec<u8>, school: &School, poses: &[Pose], poser: &mut Poser, water: Option<(&[u8], usize, usize)>, overlay: Option<&str>, force: bool) -> io::Result<()> {
         let (screen_w, screen_h) = (self.grid.cols * self.grid.cell_w, self.grid.rows * self.grid.cell_h);
         if let Some((rgba, w, h)) = water
+            && let Some(water_ring) = &mut self.water_ring
             && (force || rgba != self.last_water.as_slice())
         {
             out.extend_from_slice(b"\x1b[H");
             let keys = |w: usize, h: usize| format!("a=T,f=32,s={w},v={h},i={WATER_ID},p=1,c={},r={},z=-1000,C=1", self.grid.cols, self.grid.rows);
             if self.pixel > 0 {
                 upscale(rgba, w, self.pixel, screen_w, screen_h, &mut self.scaled);
-                self.water_ring.transmit(out, &self.scaled, &keys(screen_w, screen_h))?;
+                water_ring.transmit(out, &self.scaled, &keys(screen_w, screen_h))?;
             } else {
-                self.water_ring.transmit(out, rgba, &keys(w, h))?;
+                water_ring.transmit(out, rgba, &keys(w, h))?;
             }
             self.last_water.clear();
             self.last_water.extend_from_slice(rgba);

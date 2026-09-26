@@ -14,13 +14,16 @@ use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 
 /// Set by SIGINT, SIGTERM and SIGHUP. The frame loop exits through the normal cleanup.
 pub static QUIT: AtomicBool = AtomicBool::new(false);
 
 static ORIGINAL: OnceLock<libc::termios> = OnceLock::new();
+
+/// A copy of the real stderr while it points at /dev/null. -1 when it is not redirected.
+static STDERR: AtomicI32 = AtomicI32::new(-1);
 
 /// The image shown through placeholder cells in tmux, deleted on restore. 0 outside tmux.
 static TMUX_IMAGE: AtomicU32 = AtomicU32::new(0);
@@ -34,7 +37,8 @@ extern "C" fn on_signal(_: libc::c_int) {
     QUIT.store(true, Ordering::Relaxed);
 }
 
-/// Raw mode, alternate screen, focus reporting and (optionally) mouse reporting, undone on drop
+/// Raw mode, alternate screen, focus reporting, (optionally) mouse reporting and stderr sent to
+/// /dev/null, undone on drop
 /// and by a panic on the thread that entered.
 pub struct Terminal;
 
@@ -71,6 +75,16 @@ impl Terminal {
             }
             default_hook(info);
         }));
+
+        // Libraries (ALSA especially) print to stderr, which would land on the pond.
+        let null = unsafe { libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY) };
+        if null >= 0 {
+            STDERR.store(unsafe { libc::dup(2) }, Ordering::Relaxed);
+            unsafe {
+                libc::dup2(null, 2);
+                libc::close(null);
+            }
+        }
 
         let mut setup = b"\x1b[?1049h\x1b[?25l\x1b[?1004h\x1b[2J".to_vec();
         if mouse {
@@ -110,6 +124,13 @@ fn restore() {
     }
     bytes.extend_from_slice(b"\x1b[?2026l\x1b[?1004l\x1b[?1003l\x1b[?1006l\x1b[?1000l\x1b[0m\x1b[?25h\x1b[?1049l");
     write_fd(&bytes);
+    let stderr = STDERR.swap(-1, Ordering::Relaxed);
+    if stderr >= 0 {
+        unsafe {
+            libc::dup2(stderr, 2);
+            libc::close(stderr);
+        }
+    }
     if let Some(original) = ORIGINAL.get() {
         unsafe { libc::tcsetattr(0, libc::TCSANOW, original) };
     }
@@ -183,6 +204,46 @@ pub fn placeholders(out: &mut Vec<u8>, id: u8, row: usize, col: usize, n: usize)
         }
     }
     out.extend_from_slice(b"\x1b[39m");
+}
+
+/// Asks the terminal whether it can show a Kitty image sent through shared memory, as the
+/// pond's are. A 1x1 image query goes out with a device attributes request after it, which
+/// every terminal answers, so a terminal without Kitty graphics answers only the second.
+/// Errors name what is missing. A terminal that answers neither within `timeout` passes.
+pub fn probe_images(timeout: Duration) -> Result<(), String> {
+    let name = format!("/{SHM_PREFIX}{}-probe", std::process::id());
+    std::fs::write(format!("/dev/shm{name}"), [0u8; 4]).map_err(|e| format!("cannot write /dev/shm ({e})"))?;
+    let mut original: libc::termios = unsafe { std::mem::zeroed() };
+    if unsafe { libc::tcgetattr(0, &mut original) } != 0 {
+        unlink(&name);
+        return Err(format!("stdin is not a terminal ({})", io::Error::last_os_error()));
+    }
+    let mut raw = original;
+    unsafe {
+        libc::cfmakeraw(&mut raw);
+        libc::tcsetattr(0, libc::TCSANOW, &raw);
+    }
+    write_fd(format!("\x1b_Gi=31,a=q,t=s,f=32,s=1,v=1,S=4;{}\x1b\\\x1b[c", B64.encode(&name)).as_bytes());
+    let deadline = std::time::Instant::now() + timeout;
+    let mut reply = Vec::new();
+    // The device attributes answer ends in `c` and comes last.
+    while !(reply.windows(3).any(|w| w == b"\x1b[?") && reply.ends_with(b"c")) {
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() {
+            break;
+        }
+        reply.extend(read_input(left));
+    }
+    unsafe { libc::tcsetattr(0, libc::TCSANOW, &original) };
+    // Only a terminal that did not read the file leaves it behind.
+    unlink(&name);
+    let reply = String::from_utf8_lossy(&reply);
+    match reply.split_once("\x1b_Gi=31;").and_then(|(_, rest)| rest.split_once("\x1b\\")) {
+        Some(("OK", _)) => Ok(()),
+        Some((error, _)) => Err(format!("the terminal cannot read images from shared memory ({error}). koi needs a local terminal with the Kitty graphics protocol, such as Ghostty or Kitty, not one over SSH")),
+        None if reply.contains("\x1b[?") => Err("this terminal does not support the Kitty graphics protocol. koi needs one that does, such as Ghostty or Kitty".to_string()),
+        None => Ok(()),
+    }
 }
 
 /// Columns, rows, and the window size in pixels (0 if the terminal does not say).

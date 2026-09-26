@@ -1,4 +1,4 @@
-//! The HUD from research/hud/SPEC.md: a row of stones at the bottom of the window for music,
+//! The HUD: a row of stones at the bottom of the window for music,
 //! food, scene, time of day and help, always shown or (with `hud.show = "auto"`) hidden until
 //! a HUD key or `Tab`. `Hud` owns the state
 //! machine and its timers, hit tests clicks against cell rectangles, and sends each element
