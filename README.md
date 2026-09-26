@@ -80,6 +80,8 @@ Each food behaves differently, and the koi notice the splash and come over.
 
 Press on a koi and it slows, turns to face your hand and nuzzles it, tail fluttering, while a soft ring spreads from your fingers and a few bubbles rise. Let go and it lingers nearby for a while before it drifts off. Other koi sometimes come over to see. Koi you have petted come to your hand a little more readily for a while.
 
+<img src="docs/img/petting.webp" alt="A koi glides to a hand in the middle of the pond, nuzzles it and blows a few bubbles" width="800">
+
 ### The HUD
 
 A row of painted stones sits at the bottom of the window: the music pill with the track title and volume, then food, scene, time of day and help. Click a stone to open a tray of choices.
