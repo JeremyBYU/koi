@@ -72,7 +72,7 @@ Click the water to drop food, or press `f` to drop it somewhere random. Press or
 | `?` | Show the help card |
 | `q`, Ctrl-C | Quit |
 
-`koi --help` lists every key and flag. The pond remembers your theme, volume and mute between runs.
+`koi --help` lists every key and flag. `koi --backend cpu` renders without touching the GPU, and `--backend gpu` uses it whatever the config says. The pond remembers your theme, volume and mute between runs.
 
 ### Food
 

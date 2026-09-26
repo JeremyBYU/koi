@@ -88,7 +88,7 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `fps.ripple_secs` | 8.0 | Food landing, being eaten or sinking counts as activity for this long. |
 | `fps.dart_speed` | 1.6 | A koi faster than this multiple of its cruise speed counts as activity. |
 | `fps.send_when_unchanged` | false | Re-send everything every frame, even when nothing changed. |
-| `render.backend` | "gpu" | "gpu" (wgpu on Vulkan) or "cpu". "gpu" falls back to "cpu" when no adapter is found. |
+| `render.backend` | "gpu" | "gpu" (wgpu on Vulkan, or Metal on macOS) or "cpu". "gpu" falls back to "cpu" when no adapter is found. `--backend gpu|cpu` overrides it for one run. |
 | `render.water_px` | 2 | Water image pixels per cell width. |
 | `render.fish_px` | 0 | Koi image pixels per cell width. 0 means native screen pixels, the sharpest koi, capped at 10 on the CPU backend, where posing costs the square of this. 8 sends about two thirds of the bytes with a softer koi. |
 | `render.water_fps` | 30 | Most water images sent per second. |

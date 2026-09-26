@@ -21,13 +21,14 @@ use std::time::{Duration, Instant, SystemTime};
 /// The sharpest koi `fish_px = 0` gives on the CPU backend.
 const CPU_FISH_PX: usize = 10;
 
-const USAGE: &str = "usage: koi [--config PATH] [--theme NAME] [--list-themes] [--print-default-config] [--version] [-h | --help]";
+const USAGE: &str = "usage: koi [--config PATH] [--theme NAME] [--backend gpu|cpu] [--list-themes] [--print-default-config] [--version] [-h | --help]";
 
 const HELP: &str = "A koi pond for terminals with the Kitty graphics protocol.
 
 Options:
   --config PATH             Read this config file instead of ~/.config/koi-pond/config.toml
   --theme NAME              Start in this theme
+  --backend gpu|cpu         Render on the GPU (Vulkan or Metal) or the CPU, whatever the config says
   --list-themes             List the themes
   --print-default-config    Print the full config with every key explained
   --version                 Print the version
@@ -47,13 +48,21 @@ Default keys (change them in the [input] section of the config):
   q, Ctrl-C     quit";
 
 fn main() -> ExitCode {
-    let (mut config_path, mut theme_arg) = (None, None);
+    let (mut config_path, mut theme_arg, mut backend_arg) = (None, None, None);
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--config" | "--theme" => match args.next() {
+            "--config" | "--theme" | "--backend" => match args.next() {
                 Some(value) if arg == "--config" => config_path = Some(PathBuf::from(value)),
-                Some(value) => theme_arg = Some(value),
+                Some(value) if arg == "--theme" => theme_arg = Some(value),
+                Some(value) => match value.as_str() {
+                    "gpu" => backend_arg = Some(Backend::Gpu),
+                    "cpu" => backend_arg = Some(Backend::Cpu),
+                    _ => {
+                        eprintln!("koi: `--backend` takes gpu or cpu, not `{value}`\n{USAGE}");
+                        return ExitCode::from(2);
+                    }
+                },
                 None => {
                     eprintln!("koi: `{arg}` needs a value\n{USAGE}");
                     return ExitCode::from(2);
@@ -132,7 +141,7 @@ fn main() -> ExitCode {
         eprintln!("koi: {e}");
         return ExitCode::from(2);
     }
-    let gpu = match cfg.render.backend {
+    let gpu = match backend_arg.unwrap_or(cfg.render.backend) {
         Backend::Gpu => match Gpu::new() {
             Ok(gpu) => Some(gpu),
             Err(e) => {
