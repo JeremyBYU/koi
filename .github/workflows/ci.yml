@@ -48,13 +48,16 @@ jobs:
       # koi exits within a second with a message if the terminal cannot show its images, so
       # still running after 25 s means the probe passed and the pond is up.
       - name: Run koi in Ghostty
+        timeout-minutes: 3
         run: |
+          xattr -dr com.apple.quarantine /Applications/Ghostty.app || true
           printf '[audio]\nenabled = false\n[pond]\nseed = 7\n' > "$RUNNER_TEMP/koi.toml"
           printf '#!/bin/sh\n"%s/target/release/koi" --config "%s/koi.toml" 2> "%s/koi.err"\necho "exit $?" >> "%s/koi.err"\nsleep 600\n' "$PWD" "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" > "$RUNNER_TEMP/run.sh"
           chmod +x "$RUNNER_TEMP/run.sh"
-          open -na /Applications/Ghostty.app --args --command="$RUNNER_TEMP/run.sh" --window-width=160 --window-height=45
+          /Applications/Ghostty.app/Contents/MacOS/ghostty --command="$RUNNER_TEMP/run.sh" --window-width=160 --window-height=45 > "$RUNNER_TEMP/ghostty.log" 2>&1 &
           sleep 25
           echo "koi stderr:"; cat "$RUNNER_TEMP/koi.err" || true
+          echo "ghostty log:"; tail -20 "$RUNNER_TEMP/ghostty.log" || true
           pgrep -lx koi
       # The screen may need a permission nobody can grant here, so this is best effort.
       - name: Screenshot
