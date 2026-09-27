@@ -5,12 +5,23 @@
 #
 #   curl -fsSL https://jeremybyu.github.io/koi/install.sh | sh
 #
+# To uninstall, pass --uninstall:
+#
+#   curl -fsSL https://jeremybyu.github.io/koi/install.sh | sh -s -- --uninstall
+#
 # KOI_INSTALL_DIR picks the folder (default ~/.local/bin). KOI_VERSION picks a release,
 # such as 0.5.0, instead of the latest.
 set -eu
 
 repo=https://github.com/JeremyBYU/koi
 dir=${KOI_INSTALL_DIR:-$HOME/.local/bin}
+uninstall=
+for arg in "$@"; do
+  case "$arg" in
+    --uninstall) uninstall=1 ;;
+    *) echo "Unknown option $arg. The one option is --uninstall." >&2; exit 2 ;;
+  esac
+done
 
 case "$(uname -s)" in
   Linux)
@@ -26,10 +37,35 @@ case "$(uname -s)" in
     # go and how to add them to the PATH. PowerShell 7 when it's installed, else the Windows
     # PowerShell that every Windows has.
     ps=$(command -v pwsh || echo powershell.exe)
+    if [ -n "$uninstall" ]; then
+      export KOI_UNINSTALL=1
+    fi
     exec "$ps" -NoProfile -Command "irm https://jeremybyu.github.io/koi/install.ps1 | iex"
     ;;
   *) echo "koi has no build for $(uname -s). See $repo#install." >&2; exit 1 ;;
 esac
+
+if [ -n "$uninstall" ]; then
+  if [ -e "$dir/koi" ]; then
+    rm -f "$dir/koi"
+    echo "Removed $dir/koi"
+  else
+    echo "There is no koi in $dir. If you installed it with KOI_INSTALL_DIR, set it again."
+  fi
+  # What koi writes by itself: the remembered scene and volume, and the loudness cache.
+  rm -rf "${XDG_STATE_HOME:-$HOME/.local/state}/koi-pond" "${XDG_CACHE_HOME:-$HOME/.cache}/koi-pond"
+  # What you wrote or downloaded stays: config.toml, your themes and the music pack.
+  kept=
+  for folder in "${XDG_CONFIG_HOME:-$HOME/.config}/koi-pond" "${XDG_DATA_HOME:-$HOME/.local/share}/koi-pond"; do
+    if [ -d "$folder" ]; then
+      kept="$kept \"$folder\""
+    fi
+  done
+  if [ -n "$kept" ]; then
+    echo "Kept your settings, themes and music. To remove them too: rm -r$kept"
+  fi
+  exit 0
+fi
 
 if [ -n "${KOI_VERSION:-}" ]; then
   version=${KOI_VERSION#v}

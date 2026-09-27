@@ -3,6 +3,10 @@
 #
 #   irm https://jeremybyu.github.io/koi/install.ps1 | iex
 #
+# To uninstall, set KOI_UNINSTALL first:
+#
+#   $env:KOI_UNINSTALL=1; irm https://jeremybyu.github.io/koi/install.ps1 | iex
+#
 # $env:KOI_VERSION picks a release, such as 0.5.0, instead of the latest. Windows support is
 # experimental.
 
@@ -13,6 +17,35 @@
 
     $repo = 'https://github.com/JeremyBYU/koi'
     $dir = Join-Path $env:LOCALAPPDATA 'Programs\koi'
+
+    if ($env:KOI_UNINSTALL) {
+        Remove-Item Env:KOI_UNINSTALL
+        if (Test-Path $dir) {
+            Remove-Item $dir -Recurse -Force
+            Write-Host "Removed $dir"
+        } else {
+            Write-Host "There is no koi in $dir."
+        }
+        $path = [Environment]::GetEnvironmentVariable('Path', 'User')
+        if (($path -split ';') -contains $dir) {
+            [Environment]::SetEnvironmentVariable('Path', (($path -split ';') | Where-Object { $_ -ne $dir }) -join ';', 'User')
+            Write-Host 'Removed it from your PATH.'
+        }
+        # What koi writes by itself: the remembered scene and volume, and the loudness cache.
+        $own = Join-Path $env:LOCALAPPDATA 'koi-pond'
+        foreach ($file in 'state.toml', 'loudness.json') {
+            Remove-Item (Join-Path $own $file) -Force -ErrorAction SilentlyContinue
+        }
+        if ((Test-Path $own) -and -not (Get-ChildItem $own)) {
+            Remove-Item $own
+        }
+        # What you wrote or downloaded stays: config.toml, your themes and the music pack.
+        $kept = @((Join-Path $env:APPDATA 'koi-pond'), (Join-Path $own 'music')) | Where-Object { Test-Path $_ }
+        if ($kept) {
+            Write-Host "Kept your settings, themes and music. To remove them too: Remove-Item -Recurse $(($kept | ForEach-Object { "'$_'" }) -join ', ')"
+        }
+        return
+    }
 
     if ($env:KOI_VERSION) {
         $version = $env:KOI_VERSION.TrimStart('v')

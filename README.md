@@ -69,6 +69,22 @@ target/release/koi
 
 This needs Rust 1.90 or newer.
 
+### Uninstall
+
+The same scripts remove koi. On Linux or macOS:
+
+```sh
+curl -fsSL https://jeremybyu.github.io/koi/install.sh | sh -s -- --uninstall
+```
+
+On Windows, in PowerShell:
+
+```powershell
+$env:KOI_UNINSTALL=1; irm https://jeremybyu.github.io/koi/install.ps1 | iex
+```
+
+They remove the program, the folder they added to your PATH on Windows, and the files koi writes by itself: the remembered scene and volume, and a cache. Your `config.toml`, your themes and any music you downloaded stay, and the script tells you where they are if you want them gone too.
+
 ## Playing
 
 Click the water to drop food. Click and hold on a koi to pet it.
