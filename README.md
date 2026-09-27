@@ -209,6 +209,8 @@ The web version is the same Rust code compiled to WebAssembly, drawn on a canvas
 
 ## Development
 
+The [development guide](https://jeremybyu.github.io/koi/guide/) walks through how koi is put together, one topic at a time: the frame loop, the main types, configuration, dependencies, tests, releases and more. Read it in about 10 minutes for the outline, or an hour or more for the detail. Its source is in [docs/guide](docs/guide/).
+
 With [just](https://github.com/casey/just), `just` lists the common tasks: `just test`, `just check` (what CI runs), `just run`, and `just serve` for the web page. Without it:
 
 ```sh

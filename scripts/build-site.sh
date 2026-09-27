@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Usage: scripts/build-site.sh [out-dir]
 # Builds the web page into out-dir (default target/site): the pages in site/, koi-web
-# compiled to wasm with its JavaScript bindings, and the three built-in tracks. Serve it with
-# any static server, such as `python3 -m http.server -d target/site`.
+# compiled to wasm with its JavaScript bindings, the three built-in tracks, and the guide to
+# the code from docs/guide at guide/. Serve it with any static server, such as
+# `python3 -m http.server -d target/site`.
 #
 # Needs the rustup target wasm32-unknown-unknown, wasm-bindgen-cli at the version of the
 # wasm-bindgen crate in Cargo.lock, ffmpeg and jq. wasm-opt (binaryen), when on the PATH,
@@ -53,4 +54,6 @@ done
 printf '%s\n' "${tracks[@]}" | jq -s . > "$out/music/tracks.json"
 cp assets/music/CREDITS.md "$out/music/"
 scripts/third-party.sh koi-web wasm32-unknown-unknown > "$out/THIRD-PARTY.md"
+mkdir -p "$out/guide"
+cp docs/guide/index.html "$out/guide/"
 ls -l "$out" "$out/pkg"
