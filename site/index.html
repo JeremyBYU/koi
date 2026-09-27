@@ -17,7 +17,10 @@
 <header class="top">
   <h1 class="mark">koi</h1>
   <p class="scene" id="scene-name" aria-live="polite">Summer Garden</p>
-  <a class="source" href="https://github.com/JeremyBYU/koi">Source on GitHub</a>
+  <nav class="source" aria-label="About the code">
+    <a href="guide/">Guide to the code</a>
+    <a href="https://github.com/JeremyBYU/koi">Source on GitHub</a>
+  </nav>
 </header>
 
 <main>
@@ -69,13 +72,16 @@
     <div class="about">
       <h2 id="terminal-heading">Run it in the terminal</h2>
       <p>koi is a small koi pond simulator, meant to be calming and simple. It started as a terminal program, and this page runs the same code in the browser.</p>
-      <p>To run it in your terminal, download the file for your system from the <a href="https://github.com/JeremyBYU/koi/releases/latest">latest release</a>, unpack it and run <code>koi</code>. It looks best in Ghostty or Kitty.</p>
+      <p>To run it in your terminal, paste the line for your system. It downloads koi from the <a href="https://github.com/JeremyBYU/koi/releases/latest">latest release</a> and checks it. Then run <code>koi</code>. It looks best in Ghostty or Kitty.</p>
     </div>
     <div class="install">
-      <pre><code>tar xzf koi-*-x86_64-linux.tar.gz
-./koi-*-x86_64-linux/koi</code></pre>
+      <pre><code># Linux and macOS
+curl -fsSL https://jeremybyu.github.io/koi/install.sh | sh
+
+# Windows, in PowerShell
+irm https://jeremybyu.github.io/koi/install.ps1 | iex</code></pre>
       <table>
-        <caption>Which file to download from the <a href="https://github.com/JeremyBYU/koi/releases/latest">latest release</a></caption>
+        <caption>Or download the file for your system from the <a href="https://github.com/JeremyBYU/koi/releases/latest">latest release</a></caption>
         <tr><th scope="row">Linux, Intel or AMD</th><td><code>x86_64-linux.tar.gz</code></td></tr>
         <tr><th scope="row">Linux, ARM</th><td><code>aarch64-linux.tar.gz</code></td></tr>
         <tr><th scope="row">macOS</th><td><code>macos.tar.gz</code></td></tr>

@@ -4,7 +4,7 @@ A small koi pond simulator, meant to be calming and simple.
 
 There are a few koi in a pond. You can feed them, pet them, and change the scene or the time of day. Some quiet music plays with a bit of water sound underneath. There's no score and nothing to win.
 
-It runs in the terminal, and you can also [try it in the browser](https://jeremybyu.github.io/koi/), on a computer or a phone.
+It runs in the terminal, and you can also [try it in the browser](https://jeremybyu.github.io/koi/), on a computer or a phone. To see how it's put together, read the [guide to the code](https://jeremybyu.github.io/koi/guide/).
 
 ![Summer Garden: koi gather around a treat in the middle of the pond, with the HUD stones along the bottom](docs/img/summer-garden.jpg)
 
@@ -14,7 +14,21 @@ It runs in the terminal, and you can also [try it in the browser](https://jeremy
 
 koi runs on Linux and macOS, and on Windows as an experiment. It looks best in [Ghostty](https://ghostty.org) or [Kitty](https://sw.kovidgoyal.net/kitty/), which can show real images. Other terminals get a rougher picture (see [Terminals](#terminals)).
 
-Download the archive for your system from the [latest release](https://github.com/JeremyBYU/koi/releases/latest), unpack it and run `koi`:
+On Linux or macOS:
+
+```sh
+curl -fsSL https://jeremybyu.github.io/koi/install.sh | sh
+```
+
+On Windows, in PowerShell:
+
+```powershell
+irm https://jeremybyu.github.io/koi/install.ps1 | iex
+```
+
+The script picks the archive for your system from the latest release, checks it against the release's checksums, and puts `koi` in `~/.local/bin`. On Windows it goes in `%LOCALAPPDATA%\Programs\koi`, which the script adds to your PATH. You can read [install.sh](site/install.sh) and [install.ps1](site/install.ps1) first.
+
+Or download the archive for your system from the [latest release](https://github.com/JeremyBYU/koi/releases/latest) yourself, unpack it and run `koi`:
 
 ```sh
 tar xzf koi-*-x86_64-linux.tar.gz

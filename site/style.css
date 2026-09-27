@@ -104,6 +104,8 @@ main,
 }
 
 .source {
+  display: flex;
+  gap: 1.1rem;
   margin-left: auto;
   font-size: 0.92rem;
 }
