@@ -17,8 +17,8 @@ koi runs on Linux and macOS, and on Windows as an experiment. It looks best in [
 Download the archive for your system from the [latest release](https://github.com/JeremyBYU/koi/releases/latest), unpack it and run `koi`:
 
 ```sh
-tar xzf koi-0.4.0-x86_64-linux.tar.gz
-./koi-0.4.0-x86_64-linux/koi
+tar xzf koi-*-x86_64-linux.tar.gz
+./koi-*-x86_64-linux/koi
 ```
 
 | System | Archive |
