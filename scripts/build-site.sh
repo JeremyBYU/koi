@@ -28,9 +28,6 @@ fi
 cargo build --profile web -p koi-web --target wasm32-unknown-unknown
 mkdir -p "$out/pkg" "$out/music"
 cp site/* "$out/"
-# The download links name the version being built.
-version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "koi-pond") | .version')
-sed -i "s/{{version}}/$version/g" "$out/index.html"
 wasm-bindgen --target web --no-typescript --out-dir "$out/pkg" target/wasm32-unknown-unknown/web/koi_web.wasm
 if command -v wasm-opt >/dev/null; then
   # Current rustc emits these features, which wasm-opt leaves off unless told.
@@ -42,9 +39,7 @@ tracks=()
 for ogg in assets/music/builtin/*.ogg; do
   name=$(basename "$ogg" .ogg)
   cp "$ogg" "$out/music/"
-  if [[ ! -f "$out/music/$name.m4a" ]]; then
-    ffmpeg -loglevel error -y -i "$ogg" -vn -c:a aac -b:a 96k "$out/music/$name.m4a"
-  fi
+  ffmpeg -loglevel error -y -i "$ogg" -vn -c:a aac -b:a 96k "$out/music/$name.m4a"
   read -r lufs peak < <(ffmpeg -hide_banner -nostats -i "$ogg" -af ebur128=peak=true -f null - 2>&1 |
     awk '/^ *I:/ { i = $2 } /^ *Peak:/ { p = $2 } END { print i, p }')
   title=$(jq -r --arg file "$name.mp3" '.[] | select(.file == $file) | .title' assets/music/tracks.json)

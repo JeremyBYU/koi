@@ -477,7 +477,6 @@ dependencies = [
  "koi-synth",
  "rodio",
  "serde_json",
- "symphonia",
 ]
 
 [[package]]

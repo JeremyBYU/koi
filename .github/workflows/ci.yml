@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The release runs it too, and publishes only if it passes.
+  workflow_call:
 
 jobs:
   linux:

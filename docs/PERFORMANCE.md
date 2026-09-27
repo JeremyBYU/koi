@@ -4,7 +4,7 @@ This file has the CPU measurements behind koi's rendering design. They come from
 
 ## How it was measured
 
-Each prototype ran in a 160x45 Ghostty window under XWayland, with `TMUX` unset. CPU is in percent of one core, averaged over 10 s, for Ghostty and for the game process separately. Each prototype ran 3 times, and the tables show the median, with the range in brackets. The floor tests ran once. A screen recorder captured about 47 to 53 fps from the window, so about 140 to 160 frames per 3 s. "Distinct" frames close to "captured" means no frames were dropped at that rate. A 30 fps sender shows about half.
+Each prototype ran in a 160x45 Ghostty window under XWayland, with `TMUX` unset. CPU is in percent of one core, averaged over 10 s, for Ghostty and for the game process separately. Each prototype ran 3 times, and the tables show the median, with the range in brackets. The floor tests ran once. A screen recorder captured about 47 to 53 fps from the window, so about 140 to 160 frames per 3 s. When nearly every captured frame is distinct, the window changed at least as often as the recorder sampled. That can't show that all 60 frames arrived. A 30 fps sender shows about half.
 
 Native Wayland was not measured. It may have a different floor.
 
@@ -31,7 +31,7 @@ What this shows:
 - Uploading a full 8 px per cell frame roughly doubles Ghostty's cost, from 23% to about 50 to 56% at 60 Hz. At 6 px per cell the upload adds about 12 points instead of about 25.
 - A picture that does not change is free (0.8%).
 
-So no design gets below about 23% total at 60 fps. The only way to single digits is to change the screen less often.
+So in this setup, any 60 fps animation costs Ghostty about 23%. Getting to single digits means changing the screen less often.
 
 ## The prototypes
 
@@ -87,6 +87,6 @@ koi combines the three things that worked:
 - GPU rendering. The water and the koi poses render with wgpu. The CPU backend is a fallback.
 - An adaptive frame rate. 60 fps while the window is focused or something is happening (food in the water, recent input, a darting koi), 8 fps when unfocused and calm, and nothing sent when nothing on screen changed.
 
-From the numbers above, a focused pond at 60 fps should cost about 27 to 30% of a core in total: Ghostty about 27, the game about 3. No 60 fps design gets meaningfully under that, because of Ghostty's 23% floor. An unfocused calm pond should cost under 10%: the floor curve gives about 7 to 9% at 10 fps and about 4 to 5% at 5 fps.
+From the numbers above, a focused pond at 60 fps should cost about 27 to 30% of a core in total: Ghostty about 27, the game about 3. Ghostty's 23% floor at 60 fps leaves little room below that. An unfocused calm pond should cost under 10%: the floor curve gives about 7 to 9% at 10 fps and about 4 to 5% at 5 fps.
 
 These are estimates from the prototypes and the floor tests. The finished game was not measured the same way.

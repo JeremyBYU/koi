@@ -12,4 +12,3 @@ koi-sim.workspace = true
 koi-synth.workspace = true
 rodio.workspace = true
 serde_json.workspace = true
-symphonia.workspace = true

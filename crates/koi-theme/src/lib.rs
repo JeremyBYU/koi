@@ -361,8 +361,8 @@ pub enum Weather {
     Fireflies,
 }
 
-/// `[scene]`: what is in the pond. Painted once per theme, so none of it costs anything per
-/// frame. The layout seed stays the same across themes.
+/// `[scene]`: what is in the pond. Mostly painted once per theme; petals and weather are
+/// drawn every frame. The layout seed stays the same across themes.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct Scene {
     /// The floor.
@@ -596,7 +596,7 @@ impl Catalog {
         let scene: Scene = section("scene").try_into().map_err(|e| format!("{}: [scene] {}", leaf.label, e.to_string().trim().replace('\n', " ")))?;
 
         let len = light.sun[0].hypot(light.sun[1]);
-        if len.is_nan() || len <= 1e-3 {
+        if !len.is_finite() || len <= 1e-3 {
             return Err(format!("{}: light.sun must point somewhere, got {:?}", leaf.label, light.sun));
         }
         light.sun = light.sun.map(|v| v / len);
@@ -611,6 +611,34 @@ impl Catalog {
         }
         if !(0.0..1.0).contains(&style.glint_threshold) {
             return Err(format!("{}: style.glint_threshold = {} must be from 0 to below 1", leaf.label, style.glint_threshold));
+        }
+        let ranges = [
+            ("light.warm", light.warm, 0.0, 1.0),
+            ("light.cool", light.cool, 0.0, 1.0),
+            ("light.ambient", light.ambient, 0.0, 2.0),
+            ("light.shadow_len", light.shadow_len, 0.0, 4.0),
+            ("light.diffuse", light.diffuse, 0.0, 1.0),
+            ("style.band_softness", style.band_softness, 0.0, 1.0),
+            ("style.grain", style.grain, 0.0, 1.0),
+            ("style.dither_strength", style.dither_strength, 0.0, 1.0),
+            ("style.caustics", style.caustics, 0.0, 2.0),
+            ("style.caustic_scale", style.caustic_scale, 0.0, 4.0),
+            ("style.caustic_softness", style.caustic_softness, 0.0, 1.0),
+            ("style.glint", style.glint, 0.0, 2.0),
+            ("style.bloom", style.bloom, 0.0, 1.0),
+            ("style.cloud_reflections", style.cloud_reflections, 0.0, 1.0),
+            ("style.leaf_shadows", style.leaf_shadows, 0.0, 1.0),
+            ("style.wash", style.wash, 0.0, 1.0),
+            ("style.anim_hz", style.anim_hz, 0.0, 60.0),
+            ("scene.pebbles", scene.pebbles, 0.0, 2.0),
+            ("scene.moss", scene.moss, 0.0, 4.0),
+            ("scene.pad_size", scene.pad_size, 0.0, 2.0),
+            ("scene.flowers", scene.flowers, 0.0, 1.0),
+            ("scene.foliage_density", scene.foliage_density, 0.0, 4.0),
+            ("scene.weather_amount", scene.weather_amount, 0.0, 1.0),
+        ];
+        if let Some((key, value, lo, hi)) = ranges.into_iter().find(|&(_, value, lo, hi)| !(lo..=hi).contains(&value)) {
+            return Err(format!("{}: {key} = {value} must be from {lo} to {hi}", leaf.label));
         }
         if scene.petals > 24 {
             return Err(format!("{}: scene.petals = {} is more than 24", leaf.label, scene.petals));
@@ -630,7 +658,8 @@ impl Catalog {
 
     /// The theme `t` (or `T`, with `forward` false) switches to from `current`: the next
     /// family in catalog order, at the current time if it has it, else noon, else its
-    /// earliest time. None when there is no other family.
+    /// earliest time. Themes that fail to resolve are skipped, and so is a family where none
+    /// resolve. None when there is no other family.
     pub fn next_scene(&self, current: &Summary, forward: bool) -> Option<String> {
         let visible: Vec<Summary> = self.summaries().into_iter().filter(|s| !s.hidden).collect();
         let mut families: Vec<&str> = Vec::new();
@@ -640,25 +669,33 @@ impl Catalog {
             }
         }
         let n = families.len();
-        let to = match families.iter().position(|f| *f == current.family) {
-            Some(_) if n < 2 => return None,
-            Some(at) if forward => (at + 1) % n,
-            Some(at) => (at + n - 1) % n,
-            None => 0,
-        };
-        let members: Vec<&Summary> = visible.iter().filter(|s| s.family == families[to]).collect();
-        let pick = members
-            .iter()
-            .find(|s| s.time == current.time)
-            .or_else(|| members.iter().find(|s| s.time == Time::Noon))
-            .or_else(|| members.iter().min_by_key(|s| s.time))?;
-        Some(pick.id.clone())
+        let at = families.iter().position(|f| *f == current.family);
+        for step in 1..=n {
+            let to = match at {
+                Some(_) if step == n => return None,
+                Some(at) if forward => (at + step) % n,
+                Some(at) => (at + n - step) % n,
+                None => step - 1,
+            };
+            let members: Vec<&Summary> = visible.iter().filter(|s| s.family == families[to] && self.resolve(&s.id).is_ok()).collect();
+            let pick = members
+                .iter()
+                .find(|s| s.time == current.time)
+                .or_else(|| members.iter().find(|s| s.time == Time::Noon))
+                .or_else(|| members.iter().min_by_key(|s| s.time));
+            if let Some(pick) = pick {
+                return Some(pick.id.clone());
+            }
+        }
+        None
     }
 
     /// The theme `l` (or `L`, with `later` false) switches to from `current`: the next time
-    /// its family has, wrapping round. None when the family has one theme.
+    /// its family has, wrapping round, skipping themes that fail to resolve. None when the
+    /// family has one theme.
     pub fn next_time(&self, current: &Summary, later: bool) -> Option<String> {
-        let mut members: Vec<Summary> = self.summaries().into_iter().filter(|s| !s.hidden && s.family == current.family).collect();
+        let mut members: Vec<Summary> =
+            self.summaries().into_iter().filter(|s| !s.hidden && s.family == current.family && (s.id == current.id || self.resolve(&s.id).is_ok())).collect();
         members.sort_by_key(|s| s.time);
         let n = members.len();
         let at = members.iter().position(|s| s.id == current.id)?;
@@ -689,8 +726,8 @@ fn summary(id: &str, label: &str, table: &toml::Table) -> Result<Summary, String
     };
     Ok(Summary {
         id: id.to_string(),
-        name: text("name")?.unwrap_or_else(|| id.to_string()),
-        description: text("description")?.unwrap_or_default(),
+        name: text("name")?.unwrap_or_else(|| id.to_string()).chars().filter(|c| !c.is_control()).collect(),
+        description: text("description")?.unwrap_or_default().chars().filter(|c| !c.is_control()).collect(),
         family: text("family")?.unwrap_or_else(|| id.to_string()),
         time,
         credit: text("credit")?.unwrap_or_default(),
@@ -878,6 +915,8 @@ mod tests {
             ("loop-b", "extends = \"loop-a\""),
             ("orphan", "extends = \"nowhere\""),
             ("bare-petals", "[scene]\npetals = 3\npetal_kinds = []"),
+            ("endless-leaves", "[scene]\nfoliage_density = inf"),
+            ("jungle", "[scene]\nfoliage_density = 1e20"),
             ("odd", "[palette]\nsparkle = \"#FFFFFF\"\n[style]\ncaustics = 0.2"),
         ]);
         let err = |id: &str| catalog.resolve(id).expect_err(id);
@@ -887,6 +926,8 @@ mod tests {
         assert!(err("loop-a").contains("a cycle"));
         assert!(err("orphan").contains("\"nowhere\", which does not exist"));
         assert!(err("bare-petals").contains("needs at least one of scene.petal_kinds"));
+        assert_eq!(err("endless-leaves"), "endless-leaves.toml: scene.foliage_density = inf must be from 0 to 4");
+        assert!(err("jungle").contains("scene.foliage_density = 100000000000000000000 must be from 0 to 4"), "{}", err("jungle"));
         let odd = catalog.resolve("odd").expect("unknown keys only warn");
         assert_eq!(odd.warnings, vec!["odd.toml: unknown key `palette.sparkle` ignored"]);
         assert_eq!(odd.style.caustics, 0.2);
@@ -931,5 +972,27 @@ mod tests {
             "pixel-garden to the next family at dusk, skipping hidden pixel"
         );
         assert_eq!(catalog.next_scene(&at("pocket-moss"), true).as_deref(), Some("summer-garden"), "wraps round");
+    }
+
+    /// A user file that breaks a built-in family does not stop `t`: it skips the family and
+    /// reaches every other one.
+    #[test]
+    fn stepping_skips_a_broken_family() {
+        let catalog = with(&[("cedar-shade", "[scene]\nfoliage_density = inf")]);
+        let mut current = catalog.resolve(ROOT).expect("root").summary;
+        let mut seen = Vec::new();
+        while let Some(id) = catalog.next_scene(&current, true) {
+            current = catalog.resolve(&id).expect("next_scene picks themes that resolve").summary;
+            if seen.contains(&current.family) {
+                break;
+            }
+            seen.push(current.family.clone());
+        }
+        assert_eq!(seen, ["maple-afternoon", "petal-spring", "rainy-afternoon", "ink-and-vermilion", "pixel-garden", "pocket-moss", "garden"]);
+        assert_eq!(
+            catalog.next_scene(&catalog.resolve("maple-afternoon").expect("maple-afternoon").summary, false).as_deref(),
+            Some("summer-garden"),
+            "backward skips it too"
+        );
     }
 }

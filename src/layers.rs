@@ -129,7 +129,6 @@ pub struct Layers {
     pub ring: ShmRing,
     /// None with a frame, where the water is part of the frame.
     water_ring: Option<ShmRing>,
-    pub renders: usize,
     framed: Option<Frame>,
 }
 
@@ -268,7 +267,6 @@ impl Layers {
             overlay: None,
             ring,
             water_ring,
-            renders: 0,
             framed: sink.map(|sink| Frame {
                 frame: Vec::new(),
                 water: vec![0; screen.0 * screen.1 * 4],
@@ -365,7 +363,7 @@ impl Layers {
         }
         t.frame.clear();
         t.frame.extend_from_slice(&t.water);
-        self.renders += koi_render::draw_pond(&mut t.frame, screen_w, school, poses, poser, &t.food, (self.scale_x, self.scale_y), self.pixel);
+        koi_render::draw_pond(&mut t.frame, screen_w, school, poses, poser, &t.food, (self.scale_x, self.scale_y), self.pixel);
         Some(&mut t.frame)
     }
 
@@ -475,8 +473,7 @@ impl Layers {
 
     /// Appends to `out` the koi in `poses`, plus whatever else changed since the last call:
     /// the water image if `water` is given and differs from the last one sent, pellets and
-    /// the overlay line. `force` re-sends everything.
-    #[allow(clippy::too_many_arguments)]
+    /// the overlay line.
     pub fn encode(
         &mut self,
         out: &mut Vec<u8>,
@@ -485,12 +482,11 @@ impl Layers {
         poser: &mut Poser,
         water: Option<(&[u8], usize, usize)>,
         overlay: Option<&str>,
-        force: bool,
     ) -> io::Result<()> {
         let (screen_w, screen_h) = (self.grid.cols * self.grid.cell_w, self.grid.rows * self.grid.cell_h);
         if let Some((rgba, w, h)) = water
             && let Some(water_ring) = &mut self.water_ring
-            && (force || rgba != self.last_water.as_slice())
+            && rgba != self.last_water.as_slice()
         {
             out.extend_from_slice(b"\x1b[H");
             let keys = |w: usize, h: usize| format!("a=T,f=32,s={w},v={h},i={WATER_ID},p=1,c={},r={},z=-1000,C=1", self.grid.cols, self.grid.rows);
@@ -530,7 +526,6 @@ impl Layers {
             } else {
                 self.ring.transmit(out, pixels, &keys(w, h))?;
             }
-            self.renders += 1;
         }
 
         let pellets: Vec<(u32, Spot)> = koi_render::shown_food(school)
@@ -541,7 +536,7 @@ impl Layers {
                 (FIRST_FOOD_ID + sprite as u32, self.spot(x, y))
             })
             .collect();
-        if force || pellets != self.pellets {
+        if pellets != self.pellets {
             for id in FIRST_FOOD_ID..FIRST_FOOD_ID + ((FoodKind::ALL.len() + 1) * FADE_LEVELS) as u32 {
                 out.extend_from_slice(format!("\x1b_Ga=d,d=i,i={id},q=2\x1b\\").as_bytes());
             }
@@ -553,7 +548,7 @@ impl Layers {
             self.pellets = pellets;
         }
 
-        if force || overlay != self.overlay.as_deref() {
+        if overlay != self.overlay.as_deref() {
             out.extend_from_slice(b"\x1b[1;1H\x1b[2K");
             if let Some(text) = overlay {
                 out.extend_from_slice(text.as_bytes());
@@ -805,7 +800,7 @@ mod tests {
         out.clear();
         let poses: Vec<Pose> = school.fish.iter().map(|f| f.pose()).collect();
         let water = vec![128u8; w * h * 4];
-        layers.encode(&mut out, &school, &poses, &mut poser, Some((&water, w, h)), None, false).expect("encode");
+        layers.encode(&mut out, &school, &poses, &mut poser, Some((&water, w, h)), None).expect("encode");
         let text = String::from_utf8_lossy(&out);
         let key = |command: &str, name: &str| {
             command.split([',', ';']).find_map(|k| k.strip_prefix(&format!("{name}="))).map(|v| v.parse::<usize>().expect("a number"))

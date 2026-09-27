@@ -166,7 +166,6 @@ fn run(config: Settings, events: Receiver<Event>, status: Sender<Status>) {
         Err(e) => {
             let _ = status.send(Status::Error(format!("no audio output: {e}")));
             let _ = status.send(Status::NoMusic(format!("no audio output: {e}")));
-            while events.recv().is_ok() {}
             return;
         }
     };

@@ -308,7 +308,8 @@ impl Hud {
         self.theme += 1;
 
         // Walk the families in catalog order the way `t` does, at the current time. A family
-        // name no theme has makes `next_scene` start at the first family.
+        // name no theme has makes `next_scene` start at the first family. It only returns
+        // themes that resolve, so a broken user theme doesn't end the walk early.
         self.families.clear();
         let mut from = Summary { family: String::new(), ..current.clone() };
         while let Some(id) = catalog.next_scene(&from, true) {
@@ -320,8 +321,12 @@ impl Hud {
             let swatch = if pick.summary.id == current.id { self.swatch } else { Swatch::new(&pick.palette) };
             self.families.push(Family { name: pick.summary.name, family: pick.summary.family, id, swatch });
         }
-        let mut times: Vec<(Time, String)> =
-            catalog.summaries().into_iter().filter(|s| !s.hidden && s.family == current.family).map(|s| (s.time, s.id)).collect();
+        let mut times: Vec<(Time, String)> = catalog
+            .summaries()
+            .into_iter()
+            .filter(|s| !s.hidden && s.family == current.family && (s.id == current.id || catalog.resolve(&s.id).is_ok()))
+            .map(|s| (s.time, s.id))
+            .collect();
         times.sort();
         if times.is_empty() {
             times.push((current.time, current.id.clone()));
@@ -332,8 +337,10 @@ impl Hud {
     /// A track started: the pill shows `title`, and peeks. The chip shows the title only
     /// when the pill cannot show all of it.
     pub fn track(&mut self, title: &str, now: Instant) {
-        self.title = title.to_string();
-        let label = if title.chars().count() > self.title_room() { title.to_string() } else { String::new() };
+        // Titles come from file names and tracks.json; a control character would reach the
+        // terminal as a command.
+        self.title = title.chars().filter(|c| !c.is_control()).collect();
+        let label = if self.title.chars().count() > self.title_room() { self.title.clone() } else { String::new() };
         self.show_peek(Element::Music, label, now);
     }
 

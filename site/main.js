@@ -48,7 +48,7 @@ init().then(
     }).observe(pondBox);
   },
   (error) => {
-    $("loading").textContent = "This browser could not load the pond. A recent Chrome, Firefox or Safari will.";
+    $("loading").textContent = "The pond didn't load. Try reloading, or use a recent Chrome, Firefox or Safari.";
     console.error(error);
   },
 );

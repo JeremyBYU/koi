@@ -206,10 +206,13 @@ impl Pond {
             sheet.extend_from_slice(pixels);
         });
         // Frames come a display refresh apart, so half of a 60 Hz one of slack keeps the water
-        // at its rate rather than every third frame.
-        let fresh = self.water_ms.is_none_or(|t| now_ms - t >= 1000.0 / WATER_FPS - 8.0);
+        // at its rate rather than every third frame. The time moves on by whole periods, not to
+        // the frame, so the rate holds at any refresh rate, and after a stall it starts over
+        // from now rather than catching up in a burst.
+        let period = 1000.0 / WATER_FPS;
+        let fresh = self.water_ms.is_none_or(|t| now_ms - t >= period - 8.0);
         if fresh {
-            self.water_ms = Some(now_ms);
+            self.water_ms = Some(self.water_ms.map(|t| t + period).filter(|t| now_ms - t <= period).unwrap_or(now_ms));
             self.water_image.clear();
             self.water_image.extend_from_slice(self.water.render(&self.school.shadows()));
         }
@@ -374,12 +377,7 @@ impl Pond {
         self.switch(id)
     }
 
-    /// Switches to the theme `id`. False when there is none by that name.
-    pub fn set_theme(&mut self, id: &str) -> bool {
-        self.switch(Some(id.to_string()))
-    }
-
-    /// The theme's id, as `set_theme` takes it.
+    /// The theme's id.
     pub fn theme_id(&self) -> String {
         self.theme.summary.id.clone()
     }
@@ -524,6 +522,16 @@ mod tests {
             for n in 0..5 {
                 pond.tick(f64::from(n) * 16.7);
             }
+        }
+    }
+
+    /// The water is drawn 30 times a second whatever the display's refresh rate.
+    #[test]
+    fn water_rate_holds_at_any_refresh() {
+        for hz in [60, 120, 144, 165] {
+            let mut pond = Pond::new(64.0, 40.0, 1.0, ROOT, 7);
+            let drawn = (0..10 * hz).filter(|&i| pond.tick(f64::from(i) * 1000.0 / f64::from(hz))).count();
+            assert!(drawn.abs_diff(300) <= 1, "{drawn} in ten seconds at {hz} Hz");
         }
     }
 }

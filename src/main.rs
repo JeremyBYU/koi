@@ -405,8 +405,8 @@ fn run(
 
     let mut build_ms: VecDeque<f32> = VecDeque::new();
     let (mut frames, mut sent, mut sent_bytes) = (0u32, 0u32, 0usize);
-    let (mut fps, mut sent_fps, mut bytes_per_frame, mut shm_rate, mut pose_rate) = (0.0, 0.0, 0, 0.0, 0.0);
-    let (mut stats_since, mut shm_mark, mut pose_mark) = (started, 0, 0);
+    let (mut fps, mut sent_fps, mut bytes_per_frame, mut shm_rate) = (0.0, 0.0, 0, 0.0);
+    let (mut stats_since, mut shm_mark) = (started, 0);
     // A terminal slower to take a frame than the frame interval brings the rate down to
     // `ceiling`, which climbs back slowly. Kitty errors and a long stay at the floor switch
     // to the next tier.
@@ -580,7 +580,7 @@ fn run(
         let mut problems = Vec::new();
         if reload {
             match config::load(config_path) {
-                Ok((fresh, found)) => {
+                Ok((mut fresh, found)) => {
                     problems.extend(found);
                     if fresh.theme.name != cfg.theme.name {
                         switch_to = Some(fresh.theme.name.clone());
@@ -588,6 +588,10 @@ fn run(
                     (scene.school.speed, scene.school.calmness) = (fresh.pond.speed, fresh.pond.calmness);
                     // Tab's choice between always and auto lasts until the config changes it.
                     let show = if fresh.hud.show == cfg.hud.show { hud.settings.show } else { fresh.hud.show };
+                    // What the config says applies on the next start keeps its running value, or a
+                    // resize would pick it up.
+                    (fresh.render, fresh.audio, fresh.pond.koi, fresh.pond.seed) = (cfg.render, cfg.audio, cfg.pond.koi, cfg.pond.seed);
+                    (fresh.hud.hover, fresh.input.mouse) = (cfg.hud.hover, cfg.input.mouse);
                     cfg = fresh;
                     (hud.settings, hud.keys) = (cfg.hud.clone(), cfg.input.clone());
                     hud.settings.show = show;
@@ -613,7 +617,7 @@ fn run(
                         scene = build(&cfg, &next, gpu, seed, &mut out, Some(scene), tier, tmux, &caps)?;
                         // New layers write the placeholder cells again, over the HUD's text.
                         hud.forget_text();
-                        (shm_mark, pose_mark) = (0, 0);
+                        shm_mark = 0;
                     }
                     stdout.write_all(&out)?;
                     last_water = None;
@@ -676,7 +680,7 @@ fn run(
             hud.resize(&scene.layers.grid, &theme);
             stdout.write_all(&out)?;
             last_water = None;
-            (shm_mark, pose_mark) = (0, 0);
+            shm_mark = 0;
         }
 
         // The frame shows the pond at its scheduled time, not at the moment the loop woke, so
@@ -722,7 +726,7 @@ fn run(
             // The most useful fields first, since a narrow window cuts the line.
             Some((
                 format!(
-                    " {} | {protocol}{terminal} | {backend}{music} | {fps:.1} fps, {sent_fps:.1} sent | target {target} ({reason}) | {} | build p50 {:.2}ms p99 {:.2}ms | {bytes_per_frame} B/frame | shm {shm_rate:.1} MB/s | poses {pose_rate:.0}/s | water {}x{}",
+                    " {} | {protocol}{terminal} | {backend}{music} | {fps:.1} fps, {sent_fps:.1} sent | target {target} ({reason}) | {} | build p50 {:.2}ms p99 {:.2}ms | {bytes_per_frame} B/frame | shm {shm_rate:.1} MB/s | water {}x{}",
                     theme.summary.id,
                     if focused { "focused" } else { "unfocused" },
                     percentile(&build_ms, 0.5),
@@ -741,12 +745,13 @@ fn run(
                 .filter(|_| now - started < Duration::from_secs(10))
                 .map(|first| (format!(" {first} (details on exit)"), palette.deep, palette.ui_text))
         };
-        // One line only: a wrapped second line would not be cleared by the next update.
-        let overlay_cells = text.as_ref().map(|(t, ..)| t.chars().take(scene.layers.grid.cols.saturating_sub(1)).count() + 1);
+        // One line only: a wrapped second line would not be cleared by the next update. Control
+        // characters, as in a file name quoted by an error, would reach the terminal as commands.
+        let overlay_cells = text.as_ref().map(|(t, ..)| t.chars().filter(|c| !c.is_control()).take(scene.layers.grid.cols.saturating_sub(1)).count() + 1);
         let overlay = text.map(|(t, [br, bg, bb], [fr, fg, fb]): (String, Rgb, Rgb)| {
             format!(
                 "\x1b[48;2;{br};{bg};{bb}m\x1b[38;2;{fr};{fg};{fb}m{} \x1b[0m",
-                t.chars().take(scene.layers.grid.cols.saturating_sub(1)).collect::<String>()
+                t.chars().filter(|c| !c.is_control()).take(scene.layers.grid.cols.saturating_sub(1)).collect::<String>()
             )
         });
 
@@ -778,15 +783,7 @@ fn run(
             cells.extend(overlay_cells.map(|n| (1, 1, n)));
             scene.layers.send(&mut out, overlay.as_deref(), &cells)?;
         } else {
-            scene.layers.encode(
-                &mut out,
-                &scene.school,
-                &poses,
-                &mut scene.poser,
-                water.map(|rgba| (rgba, w, h)),
-                overlay.as_deref(),
-                cfg.fps.send_when_unchanged,
-            )?;
+            scene.layers.encode(&mut out, &scene.school, &poses, &mut scene.poser, water.map(|rgba| (rgba, w, h)), overlay.as_deref())?;
             if hud_shown {
                 hud.draw(&mut out, &mut scene.layers.ring, now)?;
             }
@@ -826,8 +823,7 @@ fn run(
             sent_fps = sent as f32 / seconds;
             bytes_per_frame = sent_bytes / sent.max(1) as usize;
             shm_rate = (scene.layers.ring.bytes - shm_mark) as f32 / seconds / 1e6;
-            pose_rate = (scene.layers.renders - pose_mark) as f32 / seconds;
-            (shm_mark, pose_mark) = (scene.layers.ring.bytes, scene.layers.renders);
+            shm_mark = scene.layers.ring.bytes;
             (frames, sent, sent_bytes, stats_since) = (0, 0, 0, now);
         }
         last_present = frame_at;

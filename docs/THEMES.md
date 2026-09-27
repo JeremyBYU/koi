@@ -150,7 +150,7 @@ On load the game builds a table that maps every sRGB color, at 5 bits per channe
 
 ## `[scene]`
 
-The scene is painted once per theme, so none of it costs anything per frame. The layout seed is the same in every theme, so the pond shape, stones and pads stay put on a switch.
+Most of the scene is painted once per theme, so it costs nothing per frame. Petals and weather are the exception: they move, so they are drawn every frame. The layout seed is the same in every theme, so the pond shape, stones and pads stay put on a switch.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -194,8 +194,13 @@ An unknown key is a warning that names the file and key, and the rest of the the
 - a file that is not valid TOML, or a value of the wrong type
 - a color that is not `#RRGGBB`, or an unknown name such as `outline = "thick"`
 - an `extends` cycle, or a parent that does not exist
-- `light.sun = [0, 0]`
+- `light.sun = [0, 0]`, or a `sun` that is not a finite number
 - `tone_steps`, `depth_bands` or `koi_tones` below 1, `pixel_px` other than 0 or 4 to 8, `anim_hz`, `caustic_scale` or `caustic_softness` not above 0, `glint_threshold` outside 0 to below 1
+- `warm`, `cool`, `diffuse`, `band_softness`, `grain`, `dither_strength`, `caustic_softness`, `bloom`, `cloud_reflections`, `leaf_shadows`, `wash`, `flowers` or `weather_amount` outside 0 to 1
+- `ambient`, `caustics`, `glint`, `pebbles` or `pad_size` outside 0 to 2
+- `shadow_len`, `caustic_scale`, `moss` or `foliage_density` outside 0 to 4
+- `anim_hz` above 60
+- `inf` or `nan` in any of these
 - `petals` above 24, or `petals` above 0 with no `petal_kinds`
 
-An error while the pond runs keeps the current theme and shows the error on the top line for 6 s, for example `~/.config/koi-pond/themes/my-pond.toml: palette.deep = "#12345" is not a #RRGGBB color (kept Summer Garden)`. An error at start loads the built-in Summer Garden instead, shows the error on the top line for 10 s and prints it again on exit.
+An error while the pond runs keeps the current theme and shows the error on the top line for 6 s, for example `~/.config/koi-pond/themes/my-pond.toml: palette.deep = "#12345" is not a #RRGGBB color (kept Summer Garden)`. An error at start in the theme named by config.toml or remembered from last time loads the built-in Summer Garden instead, shows the error on the top line for 10 s and prints it again on exit. A theme given with `--theme` that doesn't load stops koi with the error instead.

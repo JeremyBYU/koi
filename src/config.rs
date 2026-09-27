@@ -23,8 +23,6 @@ input_secs = 3.0
 ripple_secs = 8.0
 # A koi faster than this multiple of its cruise speed counts as darting.
 dart_speed = 1.6
-# Re-send the picture even when nothing on screen changed. It costs terminal CPU for nothing.
-send_when_unchanged = false
 
 [render]
 # How the pond reaches the terminal. "auto" asks the terminal and picks the best it has:
@@ -152,7 +150,6 @@ pub struct Fps {
     pub input_secs: f64,
     pub ripple_secs: f64,
     pub dart_speed: f32,
-    pub send_when_unchanged: bool,
 }
 
 #[derive(Deserialize, Clone, Copy, PartialEq)]

@@ -645,7 +645,15 @@ impl ShmRing {
             let path = PathBuf::from(format!("/dev/shm/{}-slot{k}", ring.prefix));
             let file = OpenOptions::new().read(true).write(true).create(true).truncate(true).mode(0o600).open(&path)?;
             ring.slots.push((path, std::ptr::null_mut()));
-            file.set_len(u64::try_from(capacity).expect("slot size fits u64"))?;
+            // Reserved rather than sized sparse, so a full /dev/shm fails here and not as a
+            // SIGBUS on a later write to the mapping.
+            rustix::fs::fallocate(&file, rustix::fs::FallocateFlags::empty(), 0, u64::try_from(capacity).expect("slot size fits u64")).map_err(|e| {
+                if e == rustix::io::Errno::NOSPC {
+                    io::Error::new(io::ErrorKind::StorageFull, format!("/dev/shm is full: cannot reserve {capacity} bytes for an image slot"))
+                } else {
+                    io::Error::from(e)
+                }
+            })?;
             // Mapped for the ring's life and written in place, which is several times faster
             // than writing the file each frame. SAFETY: a fresh shared mapping of the whole slot
             // file, which only this ring maps, unmapped in `drop`.
@@ -800,7 +808,7 @@ pub enum Input {
 /// late XTVERSION answer, a lone Esc, Esc chords, and single-byte keys.
 /// Also returns how many bytes the events used. An escape sequence cut off at the end of
 /// `input` is left over, for the caller to put in front of the next read, since a read can
-/// end partway through one.
+/// end partway through one. Past 512 bytes an unfinished sequence is given up on instead.
 pub fn parse_input(input: &[u8]) -> (Vec<Input>, usize) {
     let mut events = Vec::new();
     let mut i = 0;
@@ -810,7 +818,14 @@ pub fn parse_input(input: &[u8]) -> (Vec<Input>, usize) {
             events.push(Input::Focus(rest[2] == b'I'));
             i += 3;
         } else if rest.starts_with(b"\x1b[<") {
-            let Some(end) = rest[3..].iter().position(|b| !b.is_ascii_digit() && *b != b';').map(|p| p + 3) else { break };
+            let Some(end) = rest[3..].iter().position(|b| !b.is_ascii_digit() && *b != b';').map(|p| p + 3) else {
+                if rest.len() < 512 {
+                    break;
+                }
+                i += rest.len();
+                events.push(Input::Other);
+                continue;
+            };
             let fields: Vec<usize> = String::from_utf8_lossy(&rest[3..end]).split(';').filter_map(|s| s.parse().ok()).collect();
             events.push(match (&fields[..], rest[end]) {
                 ([0, x, y], b'M') => Input::Click { col: *x, row: *y },
@@ -822,7 +837,14 @@ pub fn parse_input(input: &[u8]) -> (Vec<Input>, usize) {
             });
             i += end + 1;
         } else if rest.starts_with(b"\x1b[") {
-            let Some(end) = rest[2..].iter().position(|b| (0x40..=0x7e).contains(b)) else { break };
+            let Some(end) = rest[2..].iter().position(|b| (0x40..=0x7e).contains(b)) else {
+                if rest.len() < 512 {
+                    break;
+                }
+                i += rest.len();
+                events.push(Input::Other);
+                continue;
+            };
             i += end + 3;
             events.push(Input::Other);
         } else if let Some(prefix) = [b"\x1b_Gi=".as_slice(), b"\x1bP>|"].into_iter().find(|p| rest.len() > 1 && (rest.starts_with(p) || p.starts_with(rest))) {
@@ -1029,6 +1051,16 @@ mod tests {
             if input[k - 1] != 0x1b {
                 assert_eq!(events, whole, "split at {k}");
             }
+        }
+    }
+
+    /// An unfinished mouse report or CSI sequence is consumed once it passes 512 bytes, so
+    /// endless parameters cannot grow the carried-over input without bound.
+    #[test]
+    fn long_unfinished_csi_is_dropped() {
+        for start in [b"\x1b[<".as_slice(), b"\x1b["] {
+            let input = [start, &[b'1'; 10_000]].concat();
+            assert_eq!(parse_input(&input), (vec![Input::Other], input.len()));
         }
     }
 

@@ -4,3 +4,4 @@ target/
 /.cargo/config.toml
 /assets/music/*.part
 /dist/
+/.panel/

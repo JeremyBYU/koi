@@ -7,8 +7,8 @@ use koi_theme::{
 use std::f32::consts::{PI, TAU};
 
 const DAMP: f32 = 0.993;
-const MAX_SPLASHES: usize = 64;
-const MAX_SHADOWS: usize = 32;
+const MAX_SPLASHES: usize = 128;
+const MAX_SHADOWS: usize = 50;
 /// The most petals a theme may have (`scene.petals`); the GPU petal buffer holds this many.
 const PETALS: usize = 24;
 /// The most fireflies; they share the petal buffer, after the petals.
@@ -300,7 +300,8 @@ impl Water {
         let mut water = Water {
             w,
             h,
-            wave: 0.5 * ratio * ratio,
+            // The wave step blows up past 0.5, so above ratio 1 ripples travel slower instead.
+            wave: (0.5 * ratio * ratio).min(0.5),
             refract: 6.0 * ratio * ratio,
             slope: 4.0 * ratio,
             unit: w.min(h) as f32,
@@ -475,7 +476,7 @@ impl Water {
                     }
                 }
                 // Like water.wgsl: splashes land on the new heights, and only on open water.
-                for s in &self.splashes {
+                for s in self.splashes.iter().take(MAX_SPLASHES) {
                     let r = s.radius.ceil() as i32;
                     for py in (s.y as i32 - r).max(1)..=(s.y as i32 + r).min(h as i32 - 2) {
                         for px in (s.x as i32 - r).max(1)..=(s.x as i32 + r).min(w as i32 - 2) {
@@ -1492,5 +1493,19 @@ mod tests {
         assert!(before > 0.05 && (after - before).abs() < 0.35 * before, "peak {before} became {after}");
         let (x, y) = ((at % 240) as f32 / 1.5, (at / 240) as f32 / 1.5);
         assert!((x - 80.0).hypot(y - 45.0) < 20.0, "the ring moved to ({x}, {y})");
+    }
+
+    /// A coarse theme at ratio 2 would push the wave step past its stable limit; the cap keeps
+    /// the heights finite.
+    #[test]
+    fn waves_stay_finite_at_ratio_two() {
+        let theme = koi_theme::Catalog::load(None).0.resolve("summer-garden").expect("built-in theme");
+        let mut water = Water::new(None, 160, 90, [1.0; 2], 2.0, &theme, 3);
+        water.splash(Splash { x: 80.0, y: 45.0, radius: 6.0, amount: 1.5 });
+        for _ in 0..400 {
+            water.step();
+        }
+        let Backend::Cpu(c) = &water.backend else { unreachable!("built without a GPU") };
+        assert!(c.height.iter().all(|h| h.is_finite() && h.abs() < 10.0));
     }
 }

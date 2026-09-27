@@ -568,7 +568,7 @@ impl School {
     /// tap: the caller should then skip the chime.
     pub fn drop_food(&mut self, kind: FoodKind, x: f32, y: f32) -> usize {
         let spec = kind.spec();
-        let (x, y) = open_water(self.w, self.h, spec.spread * self.h, x, y);
+        let (x, y) = open_water(self.w, self.h, spec.spread * self.w.min(self.h), x, y);
         let mut pieces = spec.pieces.0;
         for _ in spec.pieces.0..spec.pieces.1 {
             if rand(&mut self.rng) < 0.5 {
@@ -583,7 +583,7 @@ impl School {
         }
         for _ in 0..landed {
             let angle = rand(&mut self.rng) * TAU;
-            let r = spec.spread * self.h * rand(&mut self.rng).sqrt();
+            let r = spec.spread * self.w.min(self.h) * rand(&mut self.rng).sqrt();
             let (px, py) = (x + angle.cos() * r, y + angle.sin() * r);
             let bites = if kind == FoodKind::Treat { TREAT_BITES } else { 1 };
             self.food.push(Food { kind, x: px, y: py, age: 0.0, id: self.next_food, origin: (px, py), bites, mouthed: false });
@@ -600,7 +600,7 @@ impl School {
     /// Drops a handful of `kind` anywhere in open water, clear of the rim stones. Returns
     /// where, and how many pieces landed, as `drop_food` does.
     pub fn drop_food_random(&mut self, kind: FoodKind) -> (f32, f32, usize) {
-        let margin = kind.spec().spread * self.h;
+        let margin = kind.spec().spread * self.w.min(self.h);
         loop {
             let (x, y) = (self.w * rand(&mut self.rng), self.h * rand(&mut self.rng));
             if open_water(self.w, self.h, margin, x, y) == (x, y) {
@@ -1458,7 +1458,7 @@ mod tests {
     /// Random drops, and a click on a corner stone, land every piece in open water.
     #[test]
     fn food_lands_in_open_water() {
-        for (w, h) in [(320, 190), (190, 320), (600, 110)] {
+        for (w, h) in [(320, 190), (190, 320), (600, 110), (40, 200)] {
             let mut school = School::new(w, h, 0, 5);
             let (w, h) = (w as f32, h as f32);
             for n in 0..500 {

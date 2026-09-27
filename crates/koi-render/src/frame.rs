@@ -95,8 +95,7 @@ pub fn place_food<'a>(school: &'a School, food: &'a [(usize, Vec<u8>)], scale: (
 }
 
 /// Draws the koi in `poses` and then the food over `frame`, which already holds the water and
-/// is `frame_w` pixels wide, placed as `place_koi` and `place_food` place them. Returns how many
-/// koi it posed.
+/// is `frame_w` pixels wide, placed as `place_koi` and `place_food` place them.
 #[allow(clippy::too_many_arguments)]
 pub fn draw_pond(
     frame: &mut [u8],
@@ -107,13 +106,12 @@ pub fn draw_pond(
     food: &[(usize, Vec<u8>)],
     scale: (f32, f32),
     pixel: usize,
-) -> usize {
+) {
     place_koi(poses, poser, scale, pixel, |pixels, w, _, x, y| blend(frame, frame_w, pixels, w, x, y, pixel.max(1), 255));
     for (sprite, x, y) in place_food(school, food, scale, pixel) {
         let (side, pixels) = &food[sprite];
         blend(frame, frame_w, pixels, *side, x, y, 1, 255);
     }
-    poses.len()
 }
 
 /// Draws `src`, straight-alpha RGBA `w` pixels wide, over the opaque `dst`, `dst_w` pixels
