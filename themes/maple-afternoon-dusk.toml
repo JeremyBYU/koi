@@ -1,0 +1,32 @@
+name = "Maple Afternoon at Dusk"
+description = "The same pond at dusk: a low warm sun, long shadows and lavender shade."
+extends = "maple-afternoon"
+family = "maple-afternoon"
+time = "dusk"
+
+[palette]
+deep = "#395274"
+mid = "#657A8B"
+shallow = "#A6B1B6"
+highlight = "#FAC287"
+shadow = "#655F97"
+stone_light = "#E7CABD"
+stone_dark = "#7D5A59"
+lily_dark = "#5A5640"
+lily_light = "#A09765"
+lily_flower = "#B0322A"
+koi_white = "#F6E9D4"
+koi_red = "#EB5F3B"
+koi_sumi = "#2D232A"
+ogon = "#ECAF46"
+outline = "#2D232A"
+
+[light]
+sun = [-0.9, -0.35]
+warm = 0.25
+cool = 0.25
+shadow_len = 1.7
+
+[style]
+glint_threshold = 0.6
+cloud_reflections = 0.1

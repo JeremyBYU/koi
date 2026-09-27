@@ -1,0 +1,40 @@
+name = "Maple Afternoon at Night"
+description = "The same pond at night in blue moonlight, with fireflies over the water."
+extends = "maple-afternoon"
+family = "maple-afternoon"
+time = "night"
+
+[palette]
+deep = "#0F305B"
+mid = "#215070"
+shallow = "#5D7E8F"
+highlight = "#E8D2CD"
+shadow = "#28255A"
+stone_light = "#B1A1A1"
+stone_dark = "#543F4B"
+lily_dark = "#3B4141"
+lily_light = "#6D6F67"
+lily_flower = "#92515B"
+koi_white = "#EDE6DA"
+koi_red = "#D66041"
+koi_sumi = "#1F171C"
+ogon = "#E4B05D"
+outline = "#C4D4EC"   # rim mode: the moonlit edge on the side facing the moon
+
+[light]
+sun = [-0.4, -0.9]
+warm = 0.1
+cool = 0.3
+ambient = 0.9
+
+[style]
+caustics = 0.12
+glint = 0.7
+glint_threshold = 0.8
+cloud_reflections = 0.0
+leaf_shadows = 0.3
+outline = "rim"
+
+[scene]
+weather = "fireflies"
+weather_amount = 0.6

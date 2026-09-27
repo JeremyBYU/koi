@@ -3,6 +3,7 @@
 //! steps. Nothing here touches a GPU, a terminal or audio, so it runs in plain unit tests.
 
 #![warn(missing_docs)]
+#![forbid(unsafe_code)]
 
 use std::f32::consts::{PI, TAU};
 
@@ -89,11 +90,71 @@ impl FoodKind {
 
     fn spec(self) -> Spec {
         match self {
-            FoodKind::Pellets => Spec { pieces: (1, 3), spread: 0.02, cap: 12, floats: 20.0, fades: 5.0, sinks: true, drift: 0.0, notice: 10.0, speed: FEED_CAP, filling: 0.15, splash: (0.035, 1.2) },
-            FoodKind::Flakes => Spec { pieces: (8, 12), spread: 0.09, cap: 36, floats: 30.0, fades: 8.0, sinks: true, drift: 0.004, notice: 12.0, speed: 0.45, filling: 0.04, splash: (0.05, 0.4) },
-            FoodKind::Petals => Spec { pieces: (3, 5), spread: 0.05, cap: 15, floats: 40.0, fades: 20.0, sinks: false, drift: 0.006, notice: 6.0, speed: 0.4, filling: 0.0, splash: (0.03, 0.3) },
-            FoodKind::Seeds => Spec { pieces: (3, 6), spread: 0.03, cap: 18, floats: 0.0, fades: 10.0, sinks: true, drift: 0.0, notice: 8.0, speed: 0.45, filling: 0.08, splash: (0.03, 1.5) },
-            FoodKind::Treat => Spec { pieces: (1, 1), spread: 0.0, cap: 1, floats: 54.0, fades: 6.0, sinks: false, drift: 0.0, notice: f32::INFINITY, speed: 0.5, filling: 0.1, splash: (0.06, 0.4) },
+            FoodKind::Pellets => Spec {
+                pieces: (1, 3),
+                spread: 0.02,
+                cap: 12,
+                floats: 20.0,
+                fades: 5.0,
+                sinks: true,
+                drift: 0.0,
+                notice: 10.0,
+                speed: FEED_CAP,
+                filling: 0.15,
+                splash: (0.035, 1.2),
+            },
+            FoodKind::Flakes => Spec {
+                pieces: (8, 12),
+                spread: 0.09,
+                cap: 36,
+                floats: 30.0,
+                fades: 8.0,
+                sinks: true,
+                drift: 0.004,
+                notice: 12.0,
+                speed: 0.45,
+                filling: 0.04,
+                splash: (0.05, 0.4),
+            },
+            FoodKind::Petals => Spec {
+                pieces: (3, 5),
+                spread: 0.05,
+                cap: 15,
+                floats: 40.0,
+                fades: 20.0,
+                sinks: false,
+                drift: 0.006,
+                notice: 6.0,
+                speed: 0.4,
+                filling: 0.0,
+                splash: (0.03, 0.3),
+            },
+            FoodKind::Seeds => Spec {
+                pieces: (3, 6),
+                spread: 0.03,
+                cap: 18,
+                floats: 0.0,
+                fades: 10.0,
+                sinks: true,
+                drift: 0.0,
+                notice: 8.0,
+                speed: 0.45,
+                filling: 0.08,
+                splash: (0.03, 1.5),
+            },
+            FoodKind::Treat => Spec {
+                pieces: (1, 1),
+                spread: 0.0,
+                cap: 1,
+                floats: 54.0,
+                fades: 6.0,
+                sinks: false,
+                drift: 0.0,
+                notice: f32::INFINITY,
+                speed: 0.5,
+                filling: 0.1,
+                splash: (0.06, 0.4),
+            },
         }
     }
 }
@@ -171,13 +232,28 @@ const JOINT_BEND: f32 = PI / 10.0;
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Mood {
     Cruise,
-    Rest { left: f32 },
-    Approach { food: u32 },
-    Eat { left: f32 },
-    Linger { left: f32, x: f32, y: f32 },
+    Rest {
+        left: f32,
+    },
+    Approach {
+        food: u32,
+    },
+    Eat {
+        left: f32,
+    },
+    Linger {
+        left: f32,
+        x: f32,
+        y: f32,
+    },
     /// Nuzzling a hand at (`x`, `y`). `left` counts down, and `near` up, only while the
     /// mouth touches it.
-    Nuzzle { left: f32, near: f32, x: f32, y: f32 },
+    Nuzzle {
+        left: f32,
+        near: f32,
+        x: f32,
+        y: f32,
+    },
 }
 
 /// A koi's colour pattern. The renderer paints each one differently.
@@ -468,7 +544,21 @@ impl School {
                 bubble_in: 0.0,
             });
         }
-        School { w, h, fish, food: Vec::new(), bubbles: Vec::new(), splashes: Vec::new(), speed: 1.0, calmness: 1.0, next_food: 0, nibbler: None, last_nibbler: 0, next_bite: 0.0, rng }
+        School {
+            w,
+            h,
+            fish,
+            food: Vec::new(),
+            bubbles: Vec::new(),
+            splashes: Vec::new(),
+            speed: 1.0,
+            calmness: 1.0,
+            next_food: 0,
+            nibbler: None,
+            last_nibbler: 0,
+            next_bite: 0.0,
+            rng,
+        }
     }
 
     /// Drops a handful of `kind` around (`x`, `y`) with a splash, and returns how many pieces
@@ -519,8 +609,8 @@ impl School {
     }
 
     /// Puts a hand in the water at (`x`, `y`) for a koi to nuzzle for `secs` of touching it,
-    /// and returns which koi. It is the free koi (not coming for food or eating) whose spine
-    /// passes within `reach` BL of the hand, the nearest counted in BL and shortened by how
+    /// and returns which koi, leaving any food it was after. It is the koi whose spine passes
+    /// within `reach` BL of the hand, the nearest counted in BL and shortened by how
     /// fond the koi is. `reach` of 0.25 takes a press on a koi's body, and infinity the
     /// nearest koi anywhere. With none, nothing happens. Otherwise any earlier hand is let go,
     /// the water rings softly, and a few curious koi nearby come to watch.
@@ -529,7 +619,6 @@ impl School {
             .fish
             .iter()
             .enumerate()
-            .filter(|(_, f)| !matches!(f.mood, Mood::Approach { .. } | Mood::Eat { .. }))
             .filter_map(|(k, f)| {
                 let d = f
                     .spine
@@ -640,11 +729,8 @@ impl School {
         }
         let nibbler = self.nibbler;
 
-        let others: Vec<(f32, f32, f32, f32, f32, Option<u32>)> = self
-            .fish
-            .iter()
-            .map(|f| (f.x, f.y, f.vx, f.vy, f.len, if let Mood::Approach { food } = f.mood { Some(food) } else { None }))
-            .collect();
+        let others: Vec<(f32, f32, f32, f32, f32, Option<u32>)> =
+            self.fish.iter().map(|f| (f.x, f.y, f.vx, f.vy, f.len, if let Mood::Approach { food } = f.mood { Some(food) } else { None })).collect();
         let mut resting = self.fish.iter().filter(|f| matches!(f.mood, Mood::Rest { .. })).count();
         let (w, h, knob, calm) = (self.w, self.h, self.speed.max(0.05), self.calmness.max(0.1));
         let settle = |tau: f32| 1.0 - (-DT / tau).exp();
@@ -677,13 +763,21 @@ impl School {
                     // Just past the snout, where they show against the water.
                     for n in 0..3u8 {
                         let (angle, r) = (rand(&mut self.rng) * TAU, 0.06 * bl * rand(&mut self.rng).sqrt());
-                        self.bubbles.push(Bubble { x: mouth.0 + fwd.0 * 0.15 * bl + angle.cos() * r, y: mouth.1 + fwd.1 * 0.15 * bl + angle.sin() * r, age: -0.3 * f32::from(n) });
+                        self.bubbles.push(Bubble {
+                            x: mouth.0 + fwd.0 * 0.15 * bl + angle.cos() * r,
+                            y: mouth.1 + fwd.1 * 0.15 * bl + angle.sin() * r,
+                            age: -0.3 * f32::from(n),
+                        });
                     }
                     f.bubble_in = 8.0;
                 }
             }
             f.bubble_in -= DT;
             f.joy += (if at_hand { 1.0 } else { 0.0 } - f.joy) * settle(if at_hand { 0.4 } else { 1.0 });
+            // Settled, so the renderers can skip the shimmer rather than draw a trace of it.
+            if f.joy < 1e-3 {
+                f.joy = 0.0;
+            }
             f.fond = (f.fond - DT / 600.0).max(0.0);
             if f.mood == Mood::Cruise {
                 f.rest_in -= DT;
@@ -712,14 +806,19 @@ impl School {
                         let reaction = 0.3 + 0.9 * hash(key);
                         let felt = p.age >= d / (NOTICE_SPEED * knob * bl) + reaction;
                         let rivals = others.iter().enumerate().filter(|&(j, o)| j != k && o.5 == Some(p.id)).count();
-                        // The treat draws everyone. A petal draws one curious koi, once.
+                        // The treat draws everyone. A pellet draws one koi, and a petal one curious koi, once.
                         let keen = match p.kind {
                             FoodKind::Treat => true,
                             FoodKind::Petals => !p.mouthed && (rivals == 0 || current == Some(p.id)) && hash(key ^ 0x5bd1_e995) < 0.5,
+                            FoodKind::Pellets => (rivals == 0 || current == Some(p.id)) && (f.hunger >= 0.2 || hash(key ^ 0x5bd1_e995) < 0.3),
                             _ => f.hunger >= 0.2 || hash(key ^ 0x5bd1_e995) < 0.3,
                         };
                         // The treat outranks everything else, so the whole pond goes to it.
-                        let score = if p.kind == FoodKind::Treat { f32::NEG_INFINITY } else { d + 2.0 * bl * rivals as f32 - if current == Some(p.id) { bl } else { 0.0 } };
+                        let score = if p.kind == FoodKind::Treat {
+                            f32::NEG_INFINITY
+                        } else {
+                            d + 2.0 * bl * rivals as f32 - if current == Some(p.id) { bl } else { 0.0 }
+                        };
                         (keen && felt && d < p.kind.spec().notice * bl).then_some((p.id, score))
                     })
                     .min_by(|a, b| a.1.total_cmp(&b.1));
@@ -914,7 +1013,16 @@ impl School {
             let braking = f.mood != Mood::Cruise && speed > target_speed * 1.25;
             speed *= (-(DRAG + if braking || speed > cap { BRAKE } else { 0.0 }) * DT).exp();
             f.speed = speed.max(0.02) * bl;
-            f.energy += (if matches!(f.mood, Mood::Rest { .. }) { 0.1 } else if at_hand { 0.12 } else if bursting { 1.0 } else { 0.25 } - f.energy) * settle(0.3);
+            f.energy += (if matches!(f.mood, Mood::Rest { .. }) {
+                0.1
+            } else if at_hand {
+                0.12
+            } else if bursting {
+                1.0
+            } else {
+                0.25
+            } - f.energy)
+                * settle(0.3);
 
             // Tail beat at Strouhal 0.3 for a 0.2 BL peak-to-peak tail: f = 0.3 U / 0.2. A
             // pleased koi flutters its tail faster than it swims.
@@ -1080,6 +1188,48 @@ mod tests {
         }
         assert_eq!(school.food.len(), FoodKind::Pellets.spec().cap);
         assert_eq!(school.drop_food(FoodKind::Pellets, x, y), 0);
+    }
+
+    /// Each pellet draws one koi, not the whole pond. One more may come when a koi is beaten
+    /// to its pellet and turns to another.
+    #[test]
+    fn a_pellet_draws_one_koi() {
+        for seed in 1..=20 {
+            let mut school = School::new(320, 190, 7, seed);
+            for _ in 0..600 {
+                school.step();
+            }
+            let (_, _, landed) = school.drop_food_random(FoodKind::Pellets);
+            let mut came = [false; 7];
+            for _ in 0..(15.0 / DT) as usize {
+                school.step();
+                for (k, f) in school.fish.iter().enumerate() {
+                    came[k] |= matches!(f.mood, Mood::Approach { .. });
+                }
+            }
+            let came = came.iter().filter(|&&c| c).count();
+            assert!(came <= landed + 1, "seed {seed}: {came} koi came for {landed} pellets");
+        }
+    }
+
+    /// Pressing on a koi on its way to food pets it: it leaves the food for the hand.
+    #[test]
+    fn a_koi_after_food_can_be_petted() {
+        let mut school = School::new(320, 190, 5, 21);
+        for _ in 0..300 {
+            school.step();
+        }
+        let f = &school.fish[0];
+        school.drop_food(FoodKind::Pellets, f.x + f.heading.cos() * 3.0 * f.len, f.y + f.heading.sin() * 3.0 * f.len);
+        let k = loop {
+            school.step();
+            if let Some(k) = school.fish.iter().position(|f| matches!(f.mood, Mood::Approach { .. })) {
+                break k;
+            }
+        };
+        let (x, y) = school.fish[k].spine[3];
+        assert_eq!(school.pet(x, y, 0.25, 6.0), Some(k));
+        assert!(matches!(school.fish[k].mood, Mood::Nuzzle { .. }));
     }
 
     /// Flakes scatter wide and drift, and several koi come for them at cruise speed, so none
@@ -1271,8 +1421,8 @@ mod tests {
         assert!(fastest <= CRUISE_CAP, "petting brought a koi to {fastest:.2} BL/s");
     }
 
-    /// `p` brings the nearest free koi to a hand in the middle of the pond, calmly, and it
-    /// nuzzles a while and moves on. A koi eating is left to it.
+    /// `p` brings the nearest koi to a hand in the middle of the pond, calmly, and it nuzzles a
+    /// while and moves on.
     #[test]
     fn p_brings_the_nearest_koi() {
         let mut school = School::new(320, 190, 5, 21);
@@ -1280,8 +1430,13 @@ mod tests {
             school.step();
         }
         let (x, y) = (160.0, 95.0);
-        school.fish[1].mood = Mood::Eat { left: 30.0 };
-        let nearest = school.fish.iter().enumerate().filter(|&(k, _)| k != 1).map(|(k, f)| (k, f.spine.iter().map(|&(sx, sy)| (sx - x).hypot(sy - y) / f.len).fold(f32::INFINITY, f32::min))).min_by(|a, b| a.1.total_cmp(&b.1)).map(|(k, _)| k);
+        let nearest = school
+            .fish
+            .iter()
+            .enumerate()
+            .map(|(k, f)| (k, f.spine.iter().map(|&(sx, sy)| (sx - x).hypot(sy - y) / f.len).fold(f32::INFINITY, f32::min)))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(k, _)| k);
         let k = school.pet(x, y, f32::INFINITY, 3.0);
         assert_eq!(k, nearest);
         let k = k.expect("a koi came");

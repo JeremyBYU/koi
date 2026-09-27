@@ -1,0 +1,32 @@
+name = "Petal Spring at Dusk"
+description = "The same pond at dusk: a low warm sun, long shadows and lavender shade."
+extends = "petal-spring"
+family = "petal-spring"
+time = "dusk"
+
+[palette]
+deep = "#45668B"
+mid = "#7B959D"
+shallow = "#BAC6C9"
+highlight = "#FBB5CD"
+shadow = "#9472BC"
+stone_light = "#EECDD3"
+stone_dark = "#7E6385"
+lily_dark = "#617059"
+lily_light = "#B3BB85"
+lily_flower = "#FF9CC0"
+koi_white = "#F5EDE4"
+koi_red = "#E95B3C"
+koi_sumi = "#2E2737"
+ogon = "#EEBB50"
+outline = "#1A3148"
+
+[light]
+sun = [-0.9, -0.35]
+warm = 0.25
+cool = 0.25
+shadow_len = 1.7
+
+[style]
+glint_threshold = 0.6
+cloud_reflections = 0.1

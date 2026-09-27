@@ -1,5 +1,5 @@
 [package]
-name = "koi-audio"
+name = "koi-synth"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,7 +9,3 @@ publish = false
 
 [dependencies]
 koi-sim.workspace = true
-koi-synth.workspace = true
-rodio.workspace = true
-serde_json.workspace = true
-symphonia.workspace = true

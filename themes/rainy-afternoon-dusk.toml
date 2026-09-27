@@ -1,0 +1,32 @@
+name = "Rainy Afternoon at Dusk"
+description = "The same pond at dusk: a low warm sun, long shadows and lavender shade."
+extends = "rainy-afternoon"
+family = "rainy-afternoon"
+time = "dusk"
+
+[palette]
+deep = "#364860"
+mid = "#5B6875"
+shallow = "#869095"
+highlight = "#CDC9CE"
+shadow = "#555B7F"
+stone_light = "#BDADB1"
+stone_dark = "#545459"
+lily_dark = "#4A5E49"
+lily_light = "#85A265"
+lily_flower = "#A588DB"
+koi_white = "#E5E8DF"
+koi_red = "#E75B3C"
+koi_sumi = "#252832"
+ogon = "#E6B44A"
+outline = "#163C4C"
+
+[light]
+sun = [-0.9, -0.35]
+warm = 0.25
+cool = 0.25
+shadow_len = 1.7
+
+[style]
+glint_threshold = 0.6
+cloud_reflections = 0.1

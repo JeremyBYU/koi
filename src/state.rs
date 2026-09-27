@@ -35,7 +35,11 @@ impl State {
         let path = path().ok_or("no home folder to save state in")?;
         let text = toml::to_string(self).map_err(|e| format!("state: {e}"))?;
         let temp = path.with_extension("toml.tmp");
-        path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::write(&temp, text)).and_then(|()| std::fs::rename(&temp, &path)).map_err(|e| format!("{}: {e}", path.display()))
+        path.parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&temp, text))
+            .and_then(|()| std::fs::rename(&temp, &path))
+            .map_err(|e| format!("{}: {e}", path.display()))
     }
 
     /// The theme to start with, if config.toml still names `configured`, the theme it named
@@ -55,7 +59,10 @@ mod tests {
     fn round_trip_and_the_remembered_theme() {
         let saved = State { theme: Some("moonlit-pond".to_string()), config_theme: Some("summer-garden".to_string()), volume: Some(0.4), muted: true };
         let state: State = toml::from_str(&toml::to_string(&saved).expect("serializes")).expect("parses");
-        assert_eq!((state.theme.as_deref(), state.config_theme.as_deref(), state.volume, state.muted), (Some("moonlit-pond"), Some("summer-garden"), Some(0.4), true));
+        assert_eq!(
+            (state.theme.as_deref(), state.config_theme.as_deref(), state.volume, state.muted),
+            (Some("moonlit-pond"), Some("summer-garden"), Some(0.4), true)
+        );
         assert_eq!(state.theme_for("summer-garden"), Some("moonlit-pond"));
         assert_eq!(state.theme_for("evening-garden"), None);
     }

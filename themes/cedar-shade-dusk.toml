@@ -1,0 +1,31 @@
+name = "Cedar Shade at Dusk"
+description = "The same pond at dusk: a low warm sun, long shadows and lavender shade."
+extends = "cedar-shade"
+family = "cedar-shade"
+time = "dusk"
+
+[palette]
+deep = "#2C4259"
+mid = "#4F6470"
+shallow = "#869596"
+highlight = "#E6D091"
+shadow = "#35425A"
+stone_light = "#CEBAAC"
+stone_dark = "#4B5553"
+lily_dark = "#516247"
+lily_light = "#A5B170"
+lily_flower = "#FFE6E1"
+koi_white = "#EDEAD8"
+koi_red = "#F06B3D"
+koi_sumi = "#21272D"
+ogon = "#EAB745"
+
+[light]
+sun = [-0.9, -0.35]
+warm = 0.25
+cool = 0.25
+shadow_len = 1.7
+
+[style]
+glint_threshold = 0.6
+cloud_reflections = 0.1

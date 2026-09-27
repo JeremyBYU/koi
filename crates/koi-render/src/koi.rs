@@ -1,6 +1,6 @@
 use crate::gpu::Gpu;
-use bytemuck::{Pod, Zeroable};
 use crate::water::{LOCK_SIZE, lock_table, smoothstep, steps};
+use bytemuck::{Pod, Zeroable};
 use koi_sim::{JOINTS, Koi, Pose, School, Variety, noise2};
 use koi_theme::{Outline, PaletteLock, Rgb, Theme};
 use std::f32::consts::{PI, TAU};
@@ -46,7 +46,9 @@ fn curve(pose: &Pose) -> [[f32; 4]; CURVE] {
         let [p0, p1, p2, p3] = [ext[span], ext[span + 1], ext[span + 2], ext[span + 3]];
         for n in 0..SAMPLES {
             let s = n as f32 / SAMPLES as f32;
-            let cr = |a: f32, b: f32, c: f32, d: f32| 0.5 * (2.0 * b + (c - a) * s + (2.0 * a - 5.0 * b + 4.0 * c - d) * s * s + (3.0 * b - a - 3.0 * c + d) * s * s * s);
+            let cr = |a: f32, b: f32, c: f32, d: f32| {
+                0.5 * (2.0 * b + (c - a) * s + (2.0 * a - 5.0 * b + 4.0 * c - d) * s * s + (3.0 * b - a - 3.0 * c + d) * s * s * s)
+            };
             curve[1 + span * SAMPLES + n] = [cr(p0.0, p1.0, p2.0, p3.0), cr(p0.1, p1.1, p2.1, p3.1), (span as f32 + s) * link, 0.0];
         }
     }
@@ -102,7 +104,12 @@ impl Look {
             Outline::Selout => 3,
             Outline::Rim => 4,
         };
-        Look { mode, crisp: u32::from(theme.style.pixel_px > 0), sun: theme.light.sun, colors: [srgb(p.outline), srgb(p.shadow), srgb(p.mid), srgb(p.deep), srgb(p.highlight)] }
+        Look {
+            mode,
+            crisp: u32::from(theme.style.pixel_px > 0),
+            sun: theme.light.sun,
+            colors: [srgb(p.outline), srgb(p.shadow), srgb(p.mid), srgb(p.deep), srgb(p.highlight)],
+        }
     }
 }
 
@@ -230,7 +237,12 @@ impl Poser {
         for [x, y, _, _] in curve(pose) {
             (x0, y0, x1, y1) = (x0.min(x), y0.min(y), x1.max(x), y1.max(y));
         }
-        (((x0 - reach) * l).floor() as i32 - 1, ((y0 - reach) * l).floor() as i32 - 1, ((x1 + reach) * l).ceil() as i32 + 1, ((y1 + reach) * l).ceil() as i32 + 1)
+        (
+            ((x0 - reach) * l).floor() as i32 - 1,
+            ((y0 - reach) * l).floor() as i32 - 1,
+            ((x1 + reach) * l).ceil() as i32 + 1,
+            ((y1 + reach) * l).ceil() as i32 + 1,
+        )
     }
 
     /// Koi `k` in `pose`, as straight-alpha RGBA covering `w` x `h` sprite pixels whose
@@ -303,10 +315,16 @@ impl Poser {
                     if closest > far {
                         continue;
                     }
-                    let candidates: Vec<usize> = (0..SEGS).filter(|&n| d[n] <= closest + 2.0 * half).collect();
+                    let mut candidates = [0; SEGS];
+                    let mut count = 0;
+                    for n in (0..SEGS).filter(|&n| d[n] <= closest + 2.0 * half) {
+                        candidates[count] = n;
+                        count += 1;
+                    }
                     for (row, col) in (by..(by + 8).min(h)).flat_map(|row| (bx..(bx + 8).min(w)).map(move |col| (row, col))) {
                         let (px, py) = ((x0 + col as f32) / l, (y0 + row as f32) / l);
-                        let (_, n) = candidates.iter().map(|&n| (dist2(px, py, n), n)).fold((f32::MAX, 0), |best, c| if c.0 < best.0 { c } else { best });
+                        let (_, n) =
+                            candidates[..count].iter().map(|&n| (dist2(px, py, n), n)).fold((f32::MAX, 0), |best, c| if c.0 < best.0 { c } else { best });
                         let s = (((px - qx[n]) * tx[n] + (py - qy[n]) * ty[n]) * inv[n]).clamp(0.0, 1.0);
                         let (dx, dy) = (px - qx[n] - tx[n] * s, py - qy[n] - ty[n] * s);
                         let (a, vb) = (curve[n][2] + (curve[n + 1][2] - curve[n][2]) * s, (dx * ty[n] - dy * tx[n]) * inv[n].sqrt());
@@ -330,7 +348,12 @@ impl Poser {
                                 let top = a + (b - a) * fx;
                                 top + (c + (d - c) * fx - top) * fy
                             };
-                            let sample = |b: &Body| -> [[f32; 5]; 4] { [i, i + 1, i + body.w, i + body.w + 1].map(|j| { let [r, g, bl, a] = b.texels[j]; [r, g, bl, a, b.edges[j]] }) };
+                            let sample = |b: &Body| -> [[f32; 5]; 4] {
+                                [i, i + 1, i + body.w, i + body.w + 1].map(|j| {
+                                    let [r, g, bl, a] = b.texels[j];
+                                    [r, g, bl, a, b.edges[j]]
+                                })
+                            };
                             let ([t00, t10, t01, t11], [n00, n10, n01, n11]) = (sample(body), sample(next));
                             std::array::from_fn(|ch| {
                                 let here = bilerp(t00[ch], t10[ch], t01[ch], t11[ch]);
@@ -342,9 +365,13 @@ impl Poser {
                         }
                         let straight = [texel[0] / texel[3], texel[1] / texel[3], texel[2] / texel[3]];
                         // A pleased koi's head shimmers, in bands running back from the nose.
-                        let glow = 0.25 * pose.joy * (1.0 - smoothstep(0.15, 0.45, a)) * (0.5 + 0.5 * (TAU * 5.0 * a - 2.0 * pose.phase).sin());
-                        let [hr, hg, hb, _] = self.look.colors[4];
-                        let straight = mix(straight, [hr, hg, hb], glow);
+                        let straight = if pose.joy > 0.0 {
+                            let glow = 0.25 * pose.joy * (1.0 - smoothstep(0.15, 0.45, a)) * (0.5 + 0.5 * (TAU * 5.0 * a - 2.0 * pose.phase).sin());
+                            let [hr, hg, hb, _] = self.look.colors[4];
+                            mix(straight, [hr, hg, hb], glow)
+                        } else {
+                            straight
+                        };
                         // The side of the body this pixel is on, in screen space, against the sun.
                         let side = if vb < 0.0 { -1.0 } else { 1.0 } * inv[n].sqrt();
                         let facing = (seg_y * self.look.sun[0] - seg_x * self.look.sun[1]) * side;
@@ -433,7 +460,8 @@ impl GpuPoser {
             ],
         });
         let module = device.create_shader_module(wgpu::include_wgsl!("koi.wgsl"));
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
+        let pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("pose"),
             layout: Some(&pipeline_layout),
@@ -443,13 +471,35 @@ impl GpuPoser {
             cache: None,
         });
         let (out, readback, bind_group) = Self::buffers(gpu, &layout, [&params, &texel_buffer, &edge_buffer, &lock_buffer], 4);
-        GpuPoser { gpu: gpu.clone(), pipeline, layout, params, texels: texel_buffer, edges: edge_buffer, lock: lock_buffer, out, readback, bind_group, capacity: 4 }
+        GpuPoser {
+            gpu: gpu.clone(),
+            pipeline,
+            layout,
+            params,
+            texels: texel_buffer,
+            edges: edge_buffer,
+            lock: lock_buffer,
+            out,
+            readback,
+            bind_group,
+            capacity: 4,
+        }
     }
 
     fn buffers(gpu: &Gpu, layout: &wgpu::BindGroupLayout, inputs: [&wgpu::Buffer; 4], size: u64) -> (wgpu::Buffer, wgpu::Buffer, wgpu::BindGroup) {
         let [params, texels, edges, lock] = inputs;
-        let out = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("pose out"), size, usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC, mapped_at_creation: false });
-        let readback = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("pose readback"), size, usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let out = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("pose out"),
+            size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+        let readback = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("pose readback"),
+            size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout,
@@ -485,7 +535,8 @@ impl Body {
     fn paint(f: &Koi, theme: &Theme, l: f32, beat: f32) -> Body {
         let (palette, light_cfg, style) = (&theme.palette, &theme.light, &theme.style);
         let rgb = |c: Rgb| c.map(|v| f32::from(v) / 255.0);
-        let (white, red, sumi, gold, blue, orange) = (rgb(palette.koi_white), rgb(palette.koi_red), rgb(palette.koi_sumi), rgb(palette.ogon), rgb(palette.asagi_blue), rgb(palette.asagi_red));
+        let (white, red, sumi, gold, blue, orange) =
+            (rgb(palette.koi_white), rgb(palette.koi_red), rgb(palette.koi_sumi), rgb(palette.ogon), rgb(palette.asagi_blue), rgb(palette.asagi_red));
         let (light, shadow, ink) = (rgb(palette.highlight), rgb(palette.shadow), rgb(palette.outline));
         let tones = f32::from(style.koi_tones.max(2) - 1);
         let (fin, fin_root) = match f.variety {
@@ -566,7 +617,10 @@ impl Body {
                         let soft = 2.5 / l;
                         let fade = 0.35 * smoothstep(0.6, 1.0, n) + 0.3 * smoothstep(0.72, 0.92, t);
                         let patch = |p: f32, at: f32| smoothstep(at - soft, at + soft, p);
-                        let p = 0.65 * noise2(seed, s * 3.5, v * 6.0) + 0.35 * noise2(seed ^ 0x51, s * 8.0, v * 12.0) + 0.12 * smoothstep(0.24, 0.1, s) * smoothstep(0.0, 0.04, s) - fade;
+                        let p = 0.65 * noise2(seed, s * 3.5, v * 6.0)
+                            + 0.35 * noise2(seed ^ 0x51, s * 8.0, v * 12.0)
+                            + 0.12 * smoothstep(0.24, 0.1, s) * smoothstep(0.0, 0.04, s)
+                            - fade;
                         let net = {
                             let (fa, fb) = (((s + v) / 0.05).fract(), ((s - v) / 0.05).fract());
                             let e = fa.min(1.0 - fa).min(fb.min(1.0 - fb));
@@ -624,7 +678,13 @@ impl Body {
                 let around = [(x > 0).then(|| i - 1), (x + 1 < w).then(|| i + 1), (y > 0).then(|| i - w), (y + 1 < h).then(|| i + w)];
                 let least = around.iter().map(|j| j.map_or(0.0, |j| texels[j][3])).fold(here, f32::min);
                 let drop = here - least;
-                if style.outline == Outline::Soft { smoothstep(0.55, 0.9, drop) } else if here >= 0.75 && least < 0.75 { 1.0 } else { 0.0 }
+                if style.outline == Outline::Soft {
+                    smoothstep(0.55, 0.9, drop)
+                } else if here >= 0.75 && least < 0.75 {
+                    1.0
+                } else {
+                    0.0
+                }
             })
             .collect();
         Body { w, h, l, texels, edges, offset: 0 }
@@ -714,4 +774,3 @@ mod tests {
         }
     }
 }
-

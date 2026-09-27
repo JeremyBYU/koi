@@ -320,7 +320,8 @@ impl Hud {
             let swatch = if pick.summary.id == current.id { self.swatch } else { Swatch::new(&pick.palette) };
             self.families.push(Family { name: pick.summary.name, family: pick.summary.family, id, swatch });
         }
-        let mut times: Vec<(Time, String)> = catalog.summaries().into_iter().filter(|s| !s.hidden && s.family == current.family).map(|s| (s.time, s.id)).collect();
+        let mut times: Vec<(Time, String)> =
+            catalog.summaries().into_iter().filter(|s| !s.hidden && s.family == current.family).map(|s| (s.time, s.id)).collect();
         times.sort();
         if times.is_empty() {
             times.push((current.time, current.id.clone()));
@@ -589,7 +590,7 @@ impl Hud {
                 shown.push(Element::Music);
             }
             shown.extend([Element::Food, Element::Scene, Element::Time, Element::Help]);
-            if self.tray.is_some() {
+            if self.tray.is_some() && !self.help {
                 shown.push(Element::Tray);
             }
             if self.help {
@@ -658,10 +659,12 @@ impl Hud {
         let top = self.rows.saturating_sub(3).max(1);
         let c0 = if self.settings.align == Align::Left { 3 } else { (self.cols.saturating_sub(width) / 2 + 1).max(1) };
         let stone = |col: usize, w: usize| Some(Rect { col, row: top, w, h: 3 });
-        let row = [stone(c0, self.pill_w()).filter(|_| self.music), stone(c0 + lead, 6), stone(c0 + lead + 8, 6), stone(c0 + lead + 16, 6), stone(c0 + lead + 24, 4)];
+        let row =
+            [stone(c0, self.pill_w()).filter(|_| self.music), stone(c0 + lead, 6), stone(c0 + lead + 8, 6), stone(c0 + lead + 16, 6), stone(c0 + lead + 24, 4)];
         let tray = self.tray.map(|tray| {
             let (n, iw) = self.tray_items(tray);
-            let w = (n * iw + 2).max(16);
+            // A column clear of the stone's rounded ends on each side.
+            let w = (n * iw + 4).max(16);
             let under = row[match tray {
                 Tray::Food => Element::Food,
                 Tray::Scene => Element::Scene,
@@ -671,7 +674,7 @@ impl Hud {
             .expect("the row's stones always have a place");
             Rect { col: (under.col + 3).saturating_sub(w / 2).min(self.cols.saturating_sub(w)).max(2), row: top.saturating_sub(5).max(1), w, h: 5 }
         });
-        let card = Rect { col: (c0 + width / 2).saturating_sub(17).max(1), row: top.saturating_sub(7).max(1), w: 34, h: 7 };
+        let card = Rect { col: (c0 + width / 2).saturating_sub(17).max(1), row: top.saturating_sub(8).max(1), w: 34, h: 8 };
         let chip = self.peek.as_ref().filter(|p| !p.label.is_empty()).map(|peek| {
             let under = row[peek.element.slot().min(4)].expect("the row's stones always have a place");
             let w = peek.label.chars().count() + 2;
@@ -737,7 +740,10 @@ impl Hud {
                 }
                 if rect.w >= 30 {
                     let steps = if self.muted { 0.0 } else { (self.volume * 10.0).round() };
-                    marks.extend((0..5).map(|i| (Mark::Dot { fill: (steps - 2.0 * i as f32).clamp(0.0, 2.0) / 2.0 }, (rect.w as f32 - 10.0 + 0.9 * i as f32) * cw, mid_y)));
+                    marks
+                        .extend((0..5).map(|i| {
+                            (Mark::Dot { fill: (steps - 2.0 * i as f32).clamp(0.0, 2.0) / 2.0 }, (rect.w as f32 - 10.0 + 0.9 * i as f32) * cw, mid_y)
+                        }));
                 }
                 (matches!(hovered, Some(Spot::Note | Spot::Title | Spot::Next)), marks)
             }
@@ -750,6 +756,9 @@ impl Hud {
                 if let Some(tray) = self.tray {
                     let (n, iw) = self.tray_items(tray);
                     let pad = (rect.w - n * iw) / 2;
+                    // The food tray has its keys on the row under the items; the others centre
+                    // the items over both rows above the name.
+                    let row = if tray == Tray::Food { 1.1 * ch } else { 1.5 * ch };
                     for i in 0..n {
                         let (mark, chosen) = match tray {
                             Tray::Food => (Mark::Food(i), self.food.index() == i),
@@ -757,13 +766,13 @@ impl Hud {
                             Tray::Time => (Mark::Time(self.times[i].0), self.summary.as_ref().is_some_and(|s| s.id == self.times[i].1)),
                         };
                         let cx = (pad as f32 + (i * iw) as f32 + iw as f32 / 2.0) * cw - 1.0;
-                        let cy = 1.1 * ch - if chosen { 2.0 * k_px } else { 0.0 };
+                        let cy = row - if chosen { 2.0 * k_px } else { 0.0 };
                         if hovered == Some(Spot::Item(i)) {
                             marks.push((Mark::Glow, cx, cy));
                         }
                         marks.push((mark, cx, cy));
                         if chosen {
-                            marks.push((Mark::Chosen, cx, 2.0 * ch - 2.0 * k_px));
+                            marks.push((Mark::Chosen, cx, row + 0.9 * ch - 2.0 * k_px));
                         }
                     }
                 }
@@ -823,7 +832,8 @@ impl Hud {
                 ((name(k.feed), "feed"), (format!("{}-{}", k.food[0], k.food[4]), "food")),
                 ((name(k.next_track), "next track"), (name(k.mute), "mute")),
                 ((format!("{} {}", k.volume_up, k.volume_down), "volume"), (format!("{} {}", k.next_theme, k.prev_theme), "scene")),
-                ((format!("{} {}", k.later, k.earlier), "time of day"), (name(k.quit), "quit")),
+                ((format!("{} {}", k.later, k.earlier), "time of day"), (name(k.pet), "pet")),
+                ((name(k.quit), "quit"), (String::new(), "")),
             ];
             for (i, ((key1, what1), (key2, what2))) in lines.into_iter().enumerate() {
                 let row = card.row + 1 + i;
@@ -929,7 +939,7 @@ impl Hud {
             let (look, rgba) = self.painted[k].as_ref().expect("painted just above");
             let (x, y) = ((rect.col - 1) * cw, (rect.row - 1) * ch);
             let position = |p: usize| i32::try_from(p).expect("a pixel position fits i32");
-            crate::layers::blend(frame, frame_w, rgba, look.w, position(x), position(y), 1, u32::try_from(255 * step / 4).expect("at most 255"));
+            koi_render::blend(frame, frame_w, rgba, look.w, position(x), position(y), 1, u32::try_from(255 * step / 4).expect("at most 255"));
         }
 
         let spans = self.spans(&rects, now);
@@ -1019,7 +1029,7 @@ mod tests {
         let r = hud("summer-garden", 160, 45, t0).rects();
         let cells: Vec<(usize, usize, usize)> = r[..5].iter().map(|r| r.map(|r| (r.col, r.row, r.w)).expect("row stone")).collect();
         assert_eq!(cells, [(51, 42, 30), (83, 42, 6), (91, 42, 6), (99, 42, 6), (107, 42, 4)]);
-        assert_eq!(r[6].map(|c| (c.row, c.w, c.h)), Some((35, 34, 7)));
+        assert_eq!(r[6].map(|c| (c.row, c.w, c.h)), Some((34, 34, 8)));
         assert_eq!(hud("summer-garden", 50, 20, t0).rects()[0].map(|p| p.w), Some(20));
         assert_eq!(hud("summer-garden", 40, 20, t0).rects()[0].map(|p| p.w), Some(6));
 
@@ -1089,8 +1099,8 @@ mod tests {
         assert_eq!(click(&mut hud, 85, 43, 0.5), Reply::Took);
         assert!(shown(&mut hud, at(t0, 0.8)).contains(&Element::Tray));
         let tray = hud.rects()[5].expect("tray is open");
-        assert_eq!((tray.row, tray.w), (37, 32));
-        assert_eq!(click(&mut hud, tray.col + 1 + 6 + 3, 38, 1.0), Reply::Took);
+        assert_eq!((tray.row, tray.w), (37, 34));
+        assert_eq!(click(&mut hud, tray.col + 2 + 6 + 3, 38, 1.0), Reply::Took);
         assert_eq!(hud.food(), FoodKind::Flakes);
         assert!(shown(&mut hud, at(t0, 1.3)).contains(&Element::Tray));
         shown(&mut hud, at(t0, 1.5));
@@ -1198,23 +1208,34 @@ mod tests {
         assert!(shown(&mut hud, at(t0, 92.0)).is_empty());
     }
 
-    /// A family with one time peeks "noon only" and asks for no switch.
+    /// A family with one time, as a user's own theme can be, peeks "noon only" and asks for no
+    /// switch. Every built-in scene has several times.
     #[test]
     fn one_time_family() {
         let t0 = Instant::now();
-        let mut hud = hud("cedar-shade", 160, 45, t0);
+        let dir = std::env::temp_dir().join(format!("koi-hud-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        std::fs::write(dir.join("lone-pond.toml"), "name = \"Lone Pond\"\n").expect("theme file");
+        let catalog = Catalog::load(Some(&dir)).0;
+        let _ = std::fs::remove_dir_all(&dir);
+        let theme = catalog.resolve("lone-pond").expect("user theme resolves");
+        let mut hud = Hud::new(&config(), &grid(160, 45), &theme, &catalog, 0.6, false, t0);
         assert_eq!(key(&mut hud, b'l', t0), Reply::Took);
         assert_eq!(hud.peek.as_ref().map(|p| p.label.as_str()), Some("noon only"));
         assert_eq!(key(&mut hud, b't', t0), Reply::Act(Action::Scene(true)));
     }
 
-    /// `?` opens the card over the row; any other key closes it and still does its job.
+    /// `?` opens the card over the row, hiding an open tray whose text would show through;
+    /// any other key closes it and still does its job.
     #[test]
     fn help_card() {
         let t0 = Instant::now();
         let mut hud = hud("summer-garden", 160, 45, t0);
+        hud.tray = Some(Tray::Food);
         assert_eq!(key(&mut hud, b'?', t0), Reply::Took);
-        assert!(shown(&mut hud, at(t0, 10.0)).contains(&Element::Card), "the card does not time out");
+        let up = shown(&mut hud, at(t0, 10.0));
+        assert!(up.contains(&Element::Card), "the card does not time out");
+        assert!(!up.contains(&Element::Tray));
         assert_eq!(key(&mut hud, b'q', at(t0, 10.0)), Reply::Pass);
         assert!(!hud.help);
         key(&mut hud, b'?', at(t0, 11.0));

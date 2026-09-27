@@ -373,7 +373,23 @@ impl Config {
         // Keys are matched a byte at a time, and the terminal sends any other character as
         // several bytes.
         let i = &self.input;
-        let keys = [i.feed, i.pet, i.quit, i.stats, i.next_track, i.mute, i.volume_up, i.volume_down, i.next_theme, i.prev_theme, i.later, i.earlier, i.reload, i.hud, i.help];
+        let keys = [
+            i.feed,
+            i.pet,
+            i.quit,
+            i.stats,
+            i.next_track,
+            i.mute,
+            i.volume_up,
+            i.volume_down,
+            i.next_theme,
+            i.prev_theme,
+            i.later,
+            i.earlier,
+            i.reload,
+            i.hud,
+            i.help,
+        ];
         if let Some(key) = keys.iter().chain(&i.food).find(|k| !k.is_ascii()) {
             return Err(format!("expects an ASCII key, got {key:?}"));
         }
@@ -400,8 +416,27 @@ mod tests {
         assert_eq!((config.render.backend == Backend::Gpu, config.pond.koi), (true, 5));
         assert_eq!((config.input.feed, config.input.quit, config.input.food, config.input.stats), ('f', 'q', ['1', '2', '3', '4', '5'], 'x'));
         assert!(!config.audio.music_dir.as_os_str().is_empty());
-        let keys: Vec<&str> = warnings.iter().map(|w| w.strip_prefix(&format!("{}: `", path.display())).and_then(|w| w.split('`').next()).expect("names the file and key")).collect();
-        assert_eq!(keys, ["audio.ambient_volume", "bogus", "fps.focused", "fps.from", "fps.input_secs", "hud", "input.feed", "input.food", "input.quit", "pond.koi", "render.backend", "render.protocol"]);
+        let keys: Vec<&str> = warnings
+            .iter()
+            .map(|w| w.strip_prefix(&format!("{}: `", path.display())).and_then(|w| w.split('`').next()).expect("names the file and key"))
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "audio.ambient_volume",
+                "bogus",
+                "fps.focused",
+                "fps.from",
+                "fps.input_secs",
+                "hud",
+                "input.feed",
+                "input.food",
+                "input.quit",
+                "pond.koi",
+                "render.backend",
+                "render.protocol"
+            ]
+        );
     }
 
     /// XDG folders with a HOME fallback on Unix, and APPDATA for the config and LOCALAPPDATA
@@ -418,7 +453,8 @@ mod tests {
         assert_eq!(unix(Place::Config, &[]), None);
 
         let windows = |place, vars| place_dir(place, true, env(vars));
-        let profile = &[("APPDATA", "C:/Users/k/AppData/Roaming"), ("LOCALAPPDATA", "C:/Users/k/AppData/Local"), ("HOME", "/home/k"), ("XDG_CONFIG_HOME", "/x")];
+        let profile =
+            &[("APPDATA", "C:/Users/k/AppData/Roaming"), ("LOCALAPPDATA", "C:/Users/k/AppData/Local"), ("HOME", "/home/k"), ("XDG_CONFIG_HOME", "/x")];
         assert_eq!(windows(Place::Config, profile), Some(PathBuf::from("C:/Users/k/AppData/Roaming/koi-pond")));
         for place in [Place::Data, Place::State, Place::Cache] {
             assert_eq!(windows(place, profile), Some(PathBuf::from("C:/Users/k/AppData/Local/koi-pond")));

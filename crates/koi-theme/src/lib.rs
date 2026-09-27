@@ -6,6 +6,7 @@
 //! so edits show without a rebuild. A user file with a built-in's id replaces it.
 
 #![warn(missing_docs)]
+#![forbid(unsafe_code)]
 
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
@@ -18,19 +19,31 @@ pub type Rgb = [u8; 3];
 pub const ROOT: &str = "summer-garden";
 
 /// The built-in themes, in the order `t` steps through their families.
-const BUILT_IN: [(&str, &str); 13] = [
+const BUILT_IN: [(&str, &str); 25] = [
     ("summer-garden", include_str!("../../../themes/summer-garden.toml")),
     ("morning-mist", include_str!("../../../themes/morning-mist.toml")),
     ("evening-garden", include_str!("../../../themes/evening-garden.toml")),
     ("moonlit-pond", include_str!("../../../themes/moonlit-pond.toml")),
     ("cedar-shade", include_str!("../../../themes/cedar-shade.toml")),
+    ("cedar-shade-dusk", include_str!("../../../themes/cedar-shade-dusk.toml")),
+    ("cedar-shade-night", include_str!("../../../themes/cedar-shade-night.toml")),
     ("maple-afternoon", include_str!("../../../themes/maple-afternoon.toml")),
+    ("maple-afternoon-dusk", include_str!("../../../themes/maple-afternoon-dusk.toml")),
+    ("maple-afternoon-night", include_str!("../../../themes/maple-afternoon-night.toml")),
     ("petal-spring", include_str!("../../../themes/petal-spring.toml")),
+    ("petal-spring-dusk", include_str!("../../../themes/petal-spring-dusk.toml")),
+    ("petal-spring-night", include_str!("../../../themes/petal-spring-night.toml")),
     ("rainy-afternoon", include_str!("../../../themes/rainy-afternoon.toml")),
+    ("rainy-afternoon-dusk", include_str!("../../../themes/rainy-afternoon-dusk.toml")),
+    ("rainy-afternoon-night", include_str!("../../../themes/rainy-afternoon-night.toml")),
     ("ink-and-vermilion", include_str!("../../../themes/ink-and-vermilion.toml")),
+    ("ink-and-vermilion-dusk", include_str!("../../../themes/ink-and-vermilion-dusk.toml")),
+    ("ink-and-vermilion-night", include_str!("../../../themes/ink-and-vermilion-night.toml")),
     ("hillside-summer", include_str!("../../../themes/hillside-summer.toml")),
     ("lantern-dusk", include_str!("../../../themes/lantern-dusk.toml")),
     ("pocket-moss", include_str!("../../../themes/pocket-moss.toml")),
+    ("pocket-moss-dusk", include_str!("../../../themes/pocket-moss-dusk.toml")),
+    ("pocket-moss-night", include_str!("../../../themes/pocket-moss-night.toml")),
     ("pixel", include_str!("../../../themes/pixel.toml")),
 ];
 
@@ -97,8 +110,28 @@ impl Palette {
     /// Every slot colour above, in order.
     pub fn slots(&self) -> [Rgb; 22] {
         [
-            self.deep, self.mid, self.shallow, self.highlight, self.shadow, self.stone_light, self.stone_dark, self.lily_dark, self.lily_light, self.lily_flower, self.koi_white, self.koi_red, self.koi_sumi,
-            self.ogon, self.outline, self.cloud, self.asagi_blue, self.asagi_red, self.food, self.ui_text, self.ui_dim, self.ui_accent,
+            self.deep,
+            self.mid,
+            self.shallow,
+            self.highlight,
+            self.shadow,
+            self.stone_light,
+            self.stone_dark,
+            self.lily_dark,
+            self.lily_light,
+            self.lily_flower,
+            self.koi_white,
+            self.koi_red,
+            self.koi_sumi,
+            self.ogon,
+            self.outline,
+            self.cloud,
+            self.asagi_blue,
+            self.asagi_red,
+            self.food,
+            self.ui_text,
+            self.ui_dim,
+            self.ui_accent,
         ]
     }
 }
@@ -614,7 +647,11 @@ impl Catalog {
             None => 0,
         };
         let members: Vec<&Summary> = visible.iter().filter(|s| s.family == families[to]).collect();
-        let pick = members.iter().find(|s| s.time == current.time).or_else(|| members.iter().find(|s| s.time == Time::Noon)).or_else(|| members.iter().min_by_key(|s| s.time))?;
+        let pick = members
+            .iter()
+            .find(|s| s.time == current.time)
+            .or_else(|| members.iter().find(|s| s.time == Time::Noon))
+            .or_else(|| members.iter().min_by_key(|s| s.time))?;
         Some(pick.id.clone())
     }
 
@@ -640,7 +677,10 @@ fn summary(id: &str, label: &str, table: &toml::Table) -> Result<Summary, String
     };
     let time = match text("time")? {
         None => Time::Noon,
-        Some(name) => Time::ALL.into_iter().find(|t| t.name() == name).ok_or_else(|| format!("{label}: time = \"{name}\" is not one of dawn, morning, noon, afternoon, evening, dusk, night"))?,
+        Some(name) => Time::ALL
+            .into_iter()
+            .find(|t| t.name() == name)
+            .ok_or_else(|| format!("{label}: time = \"{name}\" is not one of dawn, morning, noon, afternoon, evening, dusk, night"))?,
     };
     let hidden = match table.get("hidden") {
         None => false,
@@ -743,7 +783,10 @@ fn palette(table: &toml::Table) -> Result<Palette, String> {
     let (shallow, highlight, shadow) = (required("shallow")?, required("highlight")?, required("shadow")?);
     let (stone_light, stone_dark, lily_dark, lily_light) = (required("stone_light")?, required("stone_dark")?, required("lily_dark")?, required("lily_light")?);
     let swatches = match table.get("swatches") {
-        Some(toml::Value::Array(items)) => items.iter().map(|c| c.as_str().and_then(parse_hex).ok_or_else(|| format!("palette.swatches: {c} is not a #RRGGBB color"))).collect::<Result<_, _>>()?,
+        Some(toml::Value::Array(items)) => items
+            .iter()
+            .map(|c| c.as_str().and_then(parse_hex).ok_or_else(|| format!("palette.swatches: {c} is not a #RRGGBB color")))
+            .collect::<Result<_, _>>()?,
         _ => Vec::new(),
     };
     Ok(Palette {
@@ -817,7 +860,11 @@ mod tests {
         assert_eq!(dimmer.light.warm, 0.5);
         assert_eq!(dimmer.style.caustics, 1.0, "an integer is fine for a float key");
         assert_eq!(dimmer.palette.deep, root.palette.deep);
-        assert_eq!((dimmer.summary.name.as_str(), dimmer.summary.family.as_str(), dimmer.summary.time), ("dimmer", "dimmer", Time::Noon), "name, family and time are not inherited");
+        assert_eq!(
+            (dimmer.summary.name.as_str(), dimmer.summary.family.as_str(), dimmer.summary.time),
+            ("dimmer", "dimmer", Time::Noon),
+            "name, family and time are not inherited"
+        );
         assert_eq!(root.palette.asagi_blue, [0x6E, 0x93, 0xB5], "the root keeps the derived slots it sets");
     }
 
@@ -869,13 +916,20 @@ mod tests {
         assert_eq!(catalog.next_time(&at("summer-garden"), true).as_deref(), Some("evening-garden"));
         assert_eq!(catalog.next_time(&at("moonlit-pond"), true).as_deref(), Some("morning-mist"), "later wraps from night to dawn");
         assert_eq!(catalog.next_time(&at("morning-mist"), false).as_deref(), Some("moonlit-pond"));
-        assert_eq!(catalog.next_time(&at("cedar-shade"), true), None, "a family of one");
+        assert_eq!(catalog.next_time(&at("cedar-shade"), true).as_deref(), Some("cedar-shade-dusk"));
+        assert_eq!(catalog.next_time(&at("cedar-shade-night"), true).as_deref(), Some("cedar-shade"), "later wraps from night to noon");
+        let lone = with(&[("lone-pond", "name = \"Lone Pond\"")]);
+        assert_eq!(lone.next_time(&lone.resolve("lone-pond").expect("lone-pond").summary, true), None, "a family of one");
         assert_eq!(catalog.next_scene(&at("evening-garden"), true).as_deref(), Some("cedar-shade"), "no evening there, so noon");
         assert_eq!(catalog.next_scene(&at("cedar-shade"), false).as_deref(), Some("summer-garden"), "back to the garden at noon");
         assert_eq!(catalog.next_scene(&at("maple-afternoon"), true).as_deref(), Some("petal-spring"));
         assert_eq!(catalog.next_scene(&at("rainy-afternoon"), true).as_deref(), Some("ink-and-vermilion"));
         assert_eq!(catalog.next_scene(&at("ink-and-vermilion"), true).as_deref(), Some("hillside-summer"));
-        assert_eq!(catalog.next_scene(&at("lantern-dusk"), true).as_deref(), Some("pocket-moss"), "pixel-garden to the next family, skipping hidden pixel");
+        assert_eq!(
+            catalog.next_scene(&at("lantern-dusk"), true).as_deref(),
+            Some("pocket-moss-dusk"),
+            "pixel-garden to the next family at dusk, skipping hidden pixel"
+        );
         assert_eq!(catalog.next_scene(&at("pocket-moss"), true).as_deref(), Some("summer-garden"), "wraps round");
     }
 }

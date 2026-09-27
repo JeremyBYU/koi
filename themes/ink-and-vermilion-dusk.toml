@@ -1,0 +1,33 @@
+name = "Ink and Vermilion at Dusk"
+description = "The same pond at dusk: a low warm sun, long shadows and lavender shade."
+extends = "ink-and-vermilion"
+family = "ink-and-vermilion"
+time = "dusk"
+
+[palette]
+deep = "#798488"
+mid = "#A6A3A7"
+shallow = "#D1C5C6"
+highlight = "#EBCFC2"
+shadow = "#88879F"
+stone_light = "#F2D9D8"
+stone_dark = "#3E2D3F"
+lily_dark = "#5E5756"
+lily_light = "#8B857C"
+lily_flower = "#FFECEB"
+koi_white = "#F5EDDB"
+koi_red = "#DB5F45"
+koi_sumi = "#2B2931"
+ogon = "#D6A346"
+outline = "#2B2931"
+swatches = ["#342432", "#443342", "#616058", "#6d6b81", "#837f71", "#798689", "#939799", "#ada4a0", "#c4a9a3", "#c8afac", "#c9b2b2"]
+
+[light]
+sun = [-0.9, -0.35]
+warm = 0.25
+cool = 0.25
+shadow_len = 1.7
+
+[style]
+glint_threshold = 0.6
+cloud_reflections = 0.1

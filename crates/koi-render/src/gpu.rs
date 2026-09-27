@@ -12,11 +12,20 @@ impl Gpu {
     /// Opens the most powerful adapter: Vulkan, Metal on macOS, or DX12 on Windows. The error
     /// says why there is none, and the caller falls back to the CPU renderers.
     pub fn new() -> Result<Gpu, String> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor { backends: wgpu::Backends::VULKAN | wgpu::Backends::METAL | wgpu::Backends::DX12, ..wgpu::InstanceDescriptor::new_without_display_handle() });
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, ..Default::default() }))
-            .map_err(|e| format!("no GPU adapter: {e}"))?;
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::VULKAN | wgpu::Backends::METAL | wgpu::Backends::DX12,
+            ..wgpu::InstanceDescriptor::new_without_display_handle()
+        });
+        let adapter = pollster::block_on(
+            instance.request_adapter(&wgpu::RequestAdapterOptions { power_preference: wgpu::PowerPreference::HighPerformance, ..Default::default() }),
+        )
+        .map_err(|e| format!("no GPU adapter: {e}"))?;
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            required_limits: wgpu::Limits { max_storage_buffer_binding_size: adapter.limits().max_storage_buffer_binding_size, max_buffer_size: adapter.limits().max_buffer_size, ..Default::default() },
+            required_limits: wgpu::Limits {
+                max_storage_buffer_binding_size: adapter.limits().max_storage_buffer_binding_size,
+                max_buffer_size: adapter.limits().max_buffer_size,
+                ..Default::default()
+            },
             ..Default::default()
         }))
         .map_err(|e| format!("no GPU device: {e}"))?;

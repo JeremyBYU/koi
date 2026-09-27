@@ -4,7 +4,7 @@ members = ["crates/*"]
 default-members = [".", "crates/*"]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -14,16 +14,18 @@ authors = ["Jeremy Castagno"]
 koi-audio = { path = "crates/koi-audio" }
 koi-render = { path = "crates/koi-render" }
 koi-sim = { path = "crates/koi-sim" }
+koi-synth = { path = "crates/koi-synth" }
 koi-term = { path = "crates/koi-term" }
 koi-theme = { path = "crates/koi-theme" }
 base64 = "0.22"
 bytemuck = { version = "1.25", features = ["derive"] }
-libc = "0.2"
 miniz_oxide = "0.9"
 pollster = "1.0"
+rustix = { version = "1.1", features = ["event", "fs", "mm", "shm", "stdio", "termios"] }
 rodio = { version = "0.22.2", default-features = false, features = ["playback", "mp3", "vorbis"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+signal-hook = "0.4"
 symphonia = { version = "0.5", default-features = false, features = ["mp3", "ogg", "vorbis"] }
 toml = "0.9"
 wgpu = { version = "30.0.1", default-features = false, features = ["vulkan", "wgsl", "std"] }
@@ -64,4 +66,13 @@ icy_sixel = "0.7"
 inherits = "release"
 lto = "fat"
 codegen-units = 1
+strip = true
+
+# The web page's wasm: scripts/build-site.sh. Optimised for speed, as the pond renders on
+# one CPU core there.
+[profile.web]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
 strip = true

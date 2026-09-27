@@ -1,0 +1,41 @@
+name = "Ink and Vermilion at Night"
+description = "The same pond at night in blue moonlight, with fireflies over the water."
+extends = "ink-and-vermilion"
+family = "ink-and-vermilion"
+time = "night"
+
+[palette]
+deep = "#405365"
+mid = "#5E6C7C"
+shallow = "#878A98"
+highlight = "#E5DBEB"
+shadow = "#383D5C"
+stone_light = "#B9ADBA"
+stone_dark = "#251D39"
+lily_dark = "#3F4150"
+lily_light = "#5F616E"
+lily_flower = "#FCF3FF"
+koi_white = "#EEEAE0"
+koi_red = "#C75E48"
+koi_sumi = "#1D1B22"
+ogon = "#CFA459"
+outline = "#C4D4EC"   # rim mode: the moonlit edge on the side facing the moon
+swatches = ["#1f1830", "#2a243d", "#3f4750", "#484e6e", "#585e64", "#506376", "#647182", "#787b89", "#8a7f8b", "#8d8392", "#8e8596"]
+
+[light]
+sun = [-0.4, -0.9]
+warm = 0.1
+cool = 0.3
+ambient = 0.9
+
+[style]
+caustics = 0.12
+glint = 0.7
+glint_threshold = 0.8
+cloud_reflections = 0.0
+leaf_shadows = 0.3
+outline = "rim"
+
+[scene]
+weather = "fireflies"
+weather_amount = 0.6

@@ -8,18 +8,18 @@
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as B64;
+#[cfg(target_os = "linux")]
+use rustix::mm::{MapFlags, ProtFlags};
 use std::collections::VecDeque;
 #[cfg(target_os = "linux")]
 use std::fs::OpenOptions;
 use std::io;
 #[cfg(target_os = "linux")]
-use std::os::fd::AsRawFd;
-#[cfg(target_os = "linux")]
 use std::os::unix::fs::OpenOptionsExt;
 #[cfg(target_os = "linux")]
 use std::path::PathBuf;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock, OnceLock};
 use std::time::Duration;
 
 // The same few functions per platform: raw mode, quit signals, stderr, the raw write, the
@@ -29,8 +29,9 @@ use std::time::Duration;
 mod sys;
 
 /// Set by SIGINT, SIGTERM and SIGHUP, or on Windows by Ctrl-Break and closing the console.
-/// The frame loop exits through the normal cleanup.
-pub static QUIT: AtomicBool = AtomicBool::new(false);
+/// The frame loop exits through the normal cleanup. Shared, since signal-hook sets it through
+/// its own handle.
+pub static QUIT: LazyLock<Arc<AtomicBool>> = LazyLock::new(|| Arc::new(AtomicBool::new(false)));
 
 static ORIGINAL: OnceLock<sys::Mode> = OnceLock::new();
 
@@ -125,31 +126,303 @@ const PLACEHOLDER: char = '\u{10EEEE}';
 /// The combining marks that number a placeholder cell's image row and column, from kitty's
 /// rowcolumn-diacritics.txt: mark `n` means row or column `n`.
 const DIACRITICS: [char; 297] = [
-    '\u{0305}', '\u{030D}', '\u{030E}', '\u{0310}', '\u{0312}', '\u{033D}', '\u{033E}', '\u{033F}', '\u{0346}', '\u{034A}', '\u{034B}', '\u{034C}', 
-    '\u{0350}', '\u{0351}', '\u{0352}', '\u{0357}', '\u{035B}', '\u{0363}', '\u{0364}', '\u{0365}', '\u{0366}', '\u{0367}', '\u{0368}', '\u{0369}', 
-    '\u{036A}', '\u{036B}', '\u{036C}', '\u{036D}', '\u{036E}', '\u{036F}', '\u{0483}', '\u{0484}', '\u{0485}', '\u{0486}', '\u{0487}', '\u{0592}', 
-    '\u{0593}', '\u{0594}', '\u{0595}', '\u{0597}', '\u{0598}', '\u{0599}', '\u{059C}', '\u{059D}', '\u{059E}', '\u{059F}', '\u{05A0}', '\u{05A1}', 
-    '\u{05A8}', '\u{05A9}', '\u{05AB}', '\u{05AC}', '\u{05AF}', '\u{05C4}', '\u{0610}', '\u{0611}', '\u{0612}', '\u{0613}', '\u{0614}', '\u{0615}', 
-    '\u{0616}', '\u{0617}', '\u{0657}', '\u{0658}', '\u{0659}', '\u{065A}', '\u{065B}', '\u{065D}', '\u{065E}', '\u{06D6}', '\u{06D7}', '\u{06D8}', 
-    '\u{06D9}', '\u{06DA}', '\u{06DB}', '\u{06DC}', '\u{06DF}', '\u{06E0}', '\u{06E1}', '\u{06E2}', '\u{06E4}', '\u{06E7}', '\u{06E8}', '\u{06EB}', 
-    '\u{06EC}', '\u{0730}', '\u{0732}', '\u{0733}', '\u{0735}', '\u{0736}', '\u{073A}', '\u{073D}', '\u{073F}', '\u{0740}', '\u{0741}', '\u{0743}', 
-    '\u{0745}', '\u{0747}', '\u{0749}', '\u{074A}', '\u{07EB}', '\u{07EC}', '\u{07ED}', '\u{07EE}', '\u{07EF}', '\u{07F0}', '\u{07F1}', '\u{07F3}', 
-    '\u{0816}', '\u{0817}', '\u{0818}', '\u{0819}', '\u{081B}', '\u{081C}', '\u{081D}', '\u{081E}', '\u{081F}', '\u{0820}', '\u{0821}', '\u{0822}', 
-    '\u{0823}', '\u{0825}', '\u{0826}', '\u{0827}', '\u{0829}', '\u{082A}', '\u{082B}', '\u{082C}', '\u{082D}', '\u{0951}', '\u{0953}', '\u{0954}', 
-    '\u{0F82}', '\u{0F83}', '\u{0F86}', '\u{0F87}', '\u{135D}', '\u{135E}', '\u{135F}', '\u{17DD}', '\u{193A}', '\u{1A17}', '\u{1A75}', '\u{1A76}', 
-    '\u{1A77}', '\u{1A78}', '\u{1A79}', '\u{1A7A}', '\u{1A7B}', '\u{1A7C}', '\u{1B6B}', '\u{1B6D}', '\u{1B6E}', '\u{1B6F}', '\u{1B70}', '\u{1B71}', 
-    '\u{1B72}', '\u{1B73}', '\u{1CD0}', '\u{1CD1}', '\u{1CD2}', '\u{1CDA}', '\u{1CDB}', '\u{1CE0}', '\u{1DC0}', '\u{1DC1}', '\u{1DC3}', '\u{1DC4}', 
-    '\u{1DC5}', '\u{1DC6}', '\u{1DC7}', '\u{1DC8}', '\u{1DC9}', '\u{1DCB}', '\u{1DCC}', '\u{1DD1}', '\u{1DD2}', '\u{1DD3}', '\u{1DD4}', '\u{1DD5}', 
-    '\u{1DD6}', '\u{1DD7}', '\u{1DD8}', '\u{1DD9}', '\u{1DDA}', '\u{1DDB}', '\u{1DDC}', '\u{1DDD}', '\u{1DDE}', '\u{1DDF}', '\u{1DE0}', '\u{1DE1}', 
-    '\u{1DE2}', '\u{1DE3}', '\u{1DE4}', '\u{1DE5}', '\u{1DE6}', '\u{1DFE}', '\u{20D0}', '\u{20D1}', '\u{20D4}', '\u{20D5}', '\u{20D6}', '\u{20D7}', 
-    '\u{20DB}', '\u{20DC}', '\u{20E1}', '\u{20E7}', '\u{20E9}', '\u{20F0}', '\u{2CEF}', '\u{2CF0}', '\u{2CF1}', '\u{2DE0}', '\u{2DE1}', '\u{2DE2}', 
-    '\u{2DE3}', '\u{2DE4}', '\u{2DE5}', '\u{2DE6}', '\u{2DE7}', '\u{2DE8}', '\u{2DE9}', '\u{2DEA}', '\u{2DEB}', '\u{2DEC}', '\u{2DED}', '\u{2DEE}', 
-    '\u{2DEF}', '\u{2DF0}', '\u{2DF1}', '\u{2DF2}', '\u{2DF3}', '\u{2DF4}', '\u{2DF5}', '\u{2DF6}', '\u{2DF7}', '\u{2DF8}', '\u{2DF9}', '\u{2DFA}', 
-    '\u{2DFB}', '\u{2DFC}', '\u{2DFD}', '\u{2DFE}', '\u{2DFF}', '\u{A66F}', '\u{A67C}', '\u{A67D}', '\u{A6F0}', '\u{A6F1}', '\u{A8E0}', '\u{A8E1}', 
-    '\u{A8E2}', '\u{A8E3}', '\u{A8E4}', '\u{A8E5}', '\u{A8E6}', '\u{A8E7}', '\u{A8E8}', '\u{A8E9}', '\u{A8EA}', '\u{A8EB}', '\u{A8EC}', '\u{A8ED}', 
-    '\u{A8EE}', '\u{A8EF}', '\u{A8F0}', '\u{A8F1}', '\u{AAB0}', '\u{AAB2}', '\u{AAB3}', '\u{AAB7}', '\u{AAB8}', '\u{AABE}', '\u{AABF}', '\u{AAC1}', 
-    '\u{FE20}', '\u{FE21}', '\u{FE22}', '\u{FE23}', '\u{FE24}', '\u{FE25}', '\u{FE26}', '\u{10A0F}', '\u{10A38}', '\u{1D185}', '\u{1D186}', '\u{1D187}', 
-    '\u{1D188}', '\u{1D189}', '\u{1D1AA}', '\u{1D1AB}', '\u{1D1AC}', '\u{1D1AD}', '\u{1D242}', '\u{1D243}', '\u{1D244}'
+    '\u{0305}',
+    '\u{030D}',
+    '\u{030E}',
+    '\u{0310}',
+    '\u{0312}',
+    '\u{033D}',
+    '\u{033E}',
+    '\u{033F}',
+    '\u{0346}',
+    '\u{034A}',
+    '\u{034B}',
+    '\u{034C}',
+    '\u{0350}',
+    '\u{0351}',
+    '\u{0352}',
+    '\u{0357}',
+    '\u{035B}',
+    '\u{0363}',
+    '\u{0364}',
+    '\u{0365}',
+    '\u{0366}',
+    '\u{0367}',
+    '\u{0368}',
+    '\u{0369}',
+    '\u{036A}',
+    '\u{036B}',
+    '\u{036C}',
+    '\u{036D}',
+    '\u{036E}',
+    '\u{036F}',
+    '\u{0483}',
+    '\u{0484}',
+    '\u{0485}',
+    '\u{0486}',
+    '\u{0487}',
+    '\u{0592}',
+    '\u{0593}',
+    '\u{0594}',
+    '\u{0595}',
+    '\u{0597}',
+    '\u{0598}',
+    '\u{0599}',
+    '\u{059C}',
+    '\u{059D}',
+    '\u{059E}',
+    '\u{059F}',
+    '\u{05A0}',
+    '\u{05A1}',
+    '\u{05A8}',
+    '\u{05A9}',
+    '\u{05AB}',
+    '\u{05AC}',
+    '\u{05AF}',
+    '\u{05C4}',
+    '\u{0610}',
+    '\u{0611}',
+    '\u{0612}',
+    '\u{0613}',
+    '\u{0614}',
+    '\u{0615}',
+    '\u{0616}',
+    '\u{0617}',
+    '\u{0657}',
+    '\u{0658}',
+    '\u{0659}',
+    '\u{065A}',
+    '\u{065B}',
+    '\u{065D}',
+    '\u{065E}',
+    '\u{06D6}',
+    '\u{06D7}',
+    '\u{06D8}',
+    '\u{06D9}',
+    '\u{06DA}',
+    '\u{06DB}',
+    '\u{06DC}',
+    '\u{06DF}',
+    '\u{06E0}',
+    '\u{06E1}',
+    '\u{06E2}',
+    '\u{06E4}',
+    '\u{06E7}',
+    '\u{06E8}',
+    '\u{06EB}',
+    '\u{06EC}',
+    '\u{0730}',
+    '\u{0732}',
+    '\u{0733}',
+    '\u{0735}',
+    '\u{0736}',
+    '\u{073A}',
+    '\u{073D}',
+    '\u{073F}',
+    '\u{0740}',
+    '\u{0741}',
+    '\u{0743}',
+    '\u{0745}',
+    '\u{0747}',
+    '\u{0749}',
+    '\u{074A}',
+    '\u{07EB}',
+    '\u{07EC}',
+    '\u{07ED}',
+    '\u{07EE}',
+    '\u{07EF}',
+    '\u{07F0}',
+    '\u{07F1}',
+    '\u{07F3}',
+    '\u{0816}',
+    '\u{0817}',
+    '\u{0818}',
+    '\u{0819}',
+    '\u{081B}',
+    '\u{081C}',
+    '\u{081D}',
+    '\u{081E}',
+    '\u{081F}',
+    '\u{0820}',
+    '\u{0821}',
+    '\u{0822}',
+    '\u{0823}',
+    '\u{0825}',
+    '\u{0826}',
+    '\u{0827}',
+    '\u{0829}',
+    '\u{082A}',
+    '\u{082B}',
+    '\u{082C}',
+    '\u{082D}',
+    '\u{0951}',
+    '\u{0953}',
+    '\u{0954}',
+    '\u{0F82}',
+    '\u{0F83}',
+    '\u{0F86}',
+    '\u{0F87}',
+    '\u{135D}',
+    '\u{135E}',
+    '\u{135F}',
+    '\u{17DD}',
+    '\u{193A}',
+    '\u{1A17}',
+    '\u{1A75}',
+    '\u{1A76}',
+    '\u{1A77}',
+    '\u{1A78}',
+    '\u{1A79}',
+    '\u{1A7A}',
+    '\u{1A7B}',
+    '\u{1A7C}',
+    '\u{1B6B}',
+    '\u{1B6D}',
+    '\u{1B6E}',
+    '\u{1B6F}',
+    '\u{1B70}',
+    '\u{1B71}',
+    '\u{1B72}',
+    '\u{1B73}',
+    '\u{1CD0}',
+    '\u{1CD1}',
+    '\u{1CD2}',
+    '\u{1CDA}',
+    '\u{1CDB}',
+    '\u{1CE0}',
+    '\u{1DC0}',
+    '\u{1DC1}',
+    '\u{1DC3}',
+    '\u{1DC4}',
+    '\u{1DC5}',
+    '\u{1DC6}',
+    '\u{1DC7}',
+    '\u{1DC8}',
+    '\u{1DC9}',
+    '\u{1DCB}',
+    '\u{1DCC}',
+    '\u{1DD1}',
+    '\u{1DD2}',
+    '\u{1DD3}',
+    '\u{1DD4}',
+    '\u{1DD5}',
+    '\u{1DD6}',
+    '\u{1DD7}',
+    '\u{1DD8}',
+    '\u{1DD9}',
+    '\u{1DDA}',
+    '\u{1DDB}',
+    '\u{1DDC}',
+    '\u{1DDD}',
+    '\u{1DDE}',
+    '\u{1DDF}',
+    '\u{1DE0}',
+    '\u{1DE1}',
+    '\u{1DE2}',
+    '\u{1DE3}',
+    '\u{1DE4}',
+    '\u{1DE5}',
+    '\u{1DE6}',
+    '\u{1DFE}',
+    '\u{20D0}',
+    '\u{20D1}',
+    '\u{20D4}',
+    '\u{20D5}',
+    '\u{20D6}',
+    '\u{20D7}',
+    '\u{20DB}',
+    '\u{20DC}',
+    '\u{20E1}',
+    '\u{20E7}',
+    '\u{20E9}',
+    '\u{20F0}',
+    '\u{2CEF}',
+    '\u{2CF0}',
+    '\u{2CF1}',
+    '\u{2DE0}',
+    '\u{2DE1}',
+    '\u{2DE2}',
+    '\u{2DE3}',
+    '\u{2DE4}',
+    '\u{2DE5}',
+    '\u{2DE6}',
+    '\u{2DE7}',
+    '\u{2DE8}',
+    '\u{2DE9}',
+    '\u{2DEA}',
+    '\u{2DEB}',
+    '\u{2DEC}',
+    '\u{2DED}',
+    '\u{2DEE}',
+    '\u{2DEF}',
+    '\u{2DF0}',
+    '\u{2DF1}',
+    '\u{2DF2}',
+    '\u{2DF3}',
+    '\u{2DF4}',
+    '\u{2DF5}',
+    '\u{2DF6}',
+    '\u{2DF7}',
+    '\u{2DF8}',
+    '\u{2DF9}',
+    '\u{2DFA}',
+    '\u{2DFB}',
+    '\u{2DFC}',
+    '\u{2DFD}',
+    '\u{2DFE}',
+    '\u{2DFF}',
+    '\u{A66F}',
+    '\u{A67C}',
+    '\u{A67D}',
+    '\u{A6F0}',
+    '\u{A6F1}',
+    '\u{A8E0}',
+    '\u{A8E1}',
+    '\u{A8E2}',
+    '\u{A8E3}',
+    '\u{A8E4}',
+    '\u{A8E5}',
+    '\u{A8E6}',
+    '\u{A8E7}',
+    '\u{A8E8}',
+    '\u{A8E9}',
+    '\u{A8EA}',
+    '\u{A8EB}',
+    '\u{A8EC}',
+    '\u{A8ED}',
+    '\u{A8EE}',
+    '\u{A8EF}',
+    '\u{A8F0}',
+    '\u{A8F1}',
+    '\u{AAB0}',
+    '\u{AAB2}',
+    '\u{AAB3}',
+    '\u{AAB7}',
+    '\u{AAB8}',
+    '\u{AABE}',
+    '\u{AABF}',
+    '\u{AAC1}',
+    '\u{FE20}',
+    '\u{FE21}',
+    '\u{FE22}',
+    '\u{FE23}',
+    '\u{FE24}',
+    '\u{FE25}',
+    '\u{FE26}',
+    '\u{10A0F}',
+    '\u{10A38}',
+    '\u{1D185}',
+    '\u{1D186}',
+    '\u{1D187}',
+    '\u{1D188}',
+    '\u{1D189}',
+    '\u{1D1AA}',
+    '\u{1D1AB}',
+    '\u{1D1AC}',
+    '\u{1D1AD}',
+    '\u{1D242}',
+    '\u{1D243}',
+    '\u{1D244}',
 ];
 
 /// Appends to `out` `n` placeholder cells showing image `id` from 0-based `row` and `col`:
@@ -308,11 +581,11 @@ pub fn remove_stale_shm() {
     #[cfg(target_os = "linux")]
     for entry in std::fs::read_dir("/dev/shm").into_iter().flatten().flatten() {
         let name = entry.file_name();
-        let Some(pid) = name.to_str().and_then(|n| n.strip_prefix(SHM_PREFIX)).and_then(|rest| rest.split('-').next()).and_then(|pid| pid.parse::<libc::pid_t>().ok()) else {
+        let Some(pid) = name.to_str().and_then(|n| n.strip_prefix(SHM_PREFIX)).and_then(|rest| rest.split('-').next()).and_then(|pid| pid.parse::<u32>().ok())
+        else {
             continue;
         };
-        let gone = unsafe { libc::kill(pid, 0) } != 0 && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
-        if gone {
+        if !std::path::Path::new("/proc").join(pid.to_string()).exists() {
             let _ = std::fs::remove_file(entry.path());
         }
     }
@@ -373,10 +646,12 @@ impl ShmRing {
             let file = OpenOptions::new().read(true).write(true).create(true).truncate(true).mode(0o600).open(&path)?;
             ring.slots.push((path, std::ptr::null_mut()));
             file.set_len(u64::try_from(capacity).expect("slot size fits u64"))?;
-            let ptr = unsafe { libc::mmap(std::ptr::null_mut(), capacity, libc::PROT_READ | libc::PROT_WRITE, libc::MAP_SHARED | libc::MAP_POPULATE, file.as_raw_fd(), 0) };
-            if ptr == libc::MAP_FAILED {
-                return Err(io::Error::last_os_error());
-            }
+            // Mapped for the ring's life and written in place, which is several times faster
+            // than writing the file each frame. SAFETY: a fresh shared mapping of the whole slot
+            // file, which only this ring maps, unmapped in `drop`.
+            let ptr = unsafe {
+                rustix::mm::mmap(std::ptr::null_mut(), capacity, ProtFlags::READ | ProtFlags::WRITE, MapFlags::SHARED | MapFlags::POPULATE, &file, 0)
+            }?;
             ring.slots[k].1 = ptr.cast();
         }
         Ok(ring)
@@ -426,6 +701,8 @@ impl ShmRing {
         #[cfg(target_os = "linux")]
         {
             let (path, ptr) = &self.slots[self.next];
+            // SAFETY: the slot's mapping is `capacity` bytes, at least `data.len()`, and lives
+            // until `drop`; this ring is its only writer.
             unsafe { std::slice::from_raw_parts_mut(*ptr, data.len()) }.copy_from_slice(data);
             std::fs::hard_link(path, format!("/dev/shm{name}"))?;
             self.next = (self.next + 1) % self.slots.len();
@@ -449,7 +726,8 @@ impl Drop for ShmRing {
         #[cfg(target_os = "linux")]
         for (path, ptr) in &self.slots {
             if !ptr.is_null() {
-                unsafe { libc::munmap(ptr.cast(), self.capacity) };
+                // SAFETY: the mapping `new` made, `capacity` bytes, not used after this.
+                let _ = unsafe { rustix::mm::munmap(ptr.cast(), self.capacity) };
             }
             let _ = std::fs::remove_file(path);
         }
@@ -595,7 +873,6 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn ring_sends_shm_objects() {
-        use std::ffi::CString;
         let mut ring = ShmRing::new(2, 16).expect("ring");
         let mut out = Vec::new();
         for image in [[1u8; 8], [2; 8], [3; 8]] {
@@ -604,20 +881,18 @@ mod tests {
         assert!(ring.transmit(&mut out, &[0; 17], "a=t").is_err(), "an image larger than a slot is refused");
         let names: Vec<String> = ring.links.iter().cloned().collect();
         assert_eq!(names.len(), 2, "the oldest name is unlinked once two newer ones are out");
+        // macOS shm objects can only be read through a mapping.
         let read = |name: &str| -> Option<Vec<u8>> {
-            let c_name = CString::new(name).ok()?;
-            let fd = unsafe { libc::shm_open(c_name.as_ptr(), libc::O_RDONLY, 0o600u32) };
-            if fd < 0 {
-                return None;
+            use rustix::{mm, shm};
+            let fd = shm::open(name, shm::OFlags::RDONLY, rustix::fs::Mode::empty()).ok()?;
+            // SAFETY: a fresh read-only mapping of the object's first 8 bytes, copied out and
+            // unmapped at once.
+            unsafe {
+                let ptr = mm::mmap(std::ptr::null_mut(), 8, mm::ProtFlags::READ, mm::MapFlags::SHARED, &fd, 0).ok()?;
+                let bytes = std::slice::from_raw_parts(ptr.cast::<u8>(), 8).to_vec();
+                mm::munmap(ptr, 8).ok()?;
+                Some(bytes)
             }
-            let ptr = unsafe { libc::mmap(std::ptr::null_mut(), 8, libc::PROT_READ, libc::MAP_SHARED, fd, 0) };
-            unsafe { libc::close(fd) };
-            if ptr == libc::MAP_FAILED {
-                return None;
-            }
-            let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), 8) }.to_vec();
-            unsafe { libc::munmap(ptr, 8) };
-            Some(bytes)
         };
         assert_eq!(read(&names[1]), Some(vec![3; 8]));
         let text = String::from_utf8(out).expect("UTF-8");
@@ -656,13 +931,22 @@ mod tests {
     fn caps_from_recorded_answers() {
         let caps = |reply: &[u8], colorterm: Option<&str>| Caps::parse(reply, colorterm, false);
         let ghostty = caps(b"\x1b_Gi=31;OK\x1b\\\x1b_Gi=32;OK\x1b\\\x1b[6;21;10t\x1bP>|ghostty 1.3.1\x1b\\\x1b[?62;22;52c", Some("truecolor"));
-        assert_eq!(ghostty, Caps { kitty_shm: true, kitty_direct: true, sixel: None, cell_px: Some((10, 21)), truecolor: true, name: Some("ghostty 1.3.1".to_string()) });
+        assert_eq!(
+            ghostty,
+            Caps { kitty_shm: true, kitty_direct: true, sixel: None, cell_px: Some((10, 21)), truecolor: true, name: Some("ghostty 1.3.1".to_string()) }
+        );
         let wezterm = caps(b"\x1b_Gi=31;OK\x1b\\\x1b_Gi=32;OK\x1b\\\x1b[?1;0;65536S\x1b[?2;0;1600;990S\x1b[6;22;10t\x1bP>|WezTerm 20260703-142320-59d94d19\x1b\\\x1b[?65;4;6;18;22;52c", Some("truecolor"));
         assert_eq!((wezterm.kitty_shm, wezterm.sixel, wezterm.cell_px), (true, Some(Sixel { colors: 65536, max: Some((1600, 990)) }), Some((10, 22))));
         let xterm = caps(b"\x1b[?1;0;256S\x1b[?2;0;2000;2000S\x1bP>|XTerm(390)\x1b\\\x1b[?63;1;2;4;6;9;15;16;22;28c", None);
-        assert_eq!(xterm, Caps { sixel: Some(Sixel { colors: 256, max: Some((2000, 2000)) }), truecolor: true, name: Some("XTerm(390)".to_string()), ..Caps::default() });
+        assert_eq!(
+            xterm,
+            Caps { sixel: Some(Sixel { colors: 256, max: Some((2000, 2000)) }), truecolor: true, name: Some("XTerm(390)".to_string()), ..Caps::default() }
+        );
         let foot = caps(b"\x1b[?1;0;1024S\x1b[?2;0;10000;10000S\x1b[6;13;6t\x1bP>|foot(1.16.2)\x1b\\\x1b[?62;4;22c", Some("truecolor"));
-        assert_eq!((foot.kitty_direct, foot.sixel, foot.cell_px, foot.truecolor), (false, Some(Sixel { colors: 1024, max: Some((10000, 10000)) }), Some((6, 13)), true));
+        assert_eq!(
+            (foot.kitty_direct, foot.sixel, foot.cell_px, foot.truecolor),
+            (false, Some(Sixel { colors: 1024, max: Some((10000, 10000)) }), Some((6, 13)), true)
+        );
         // mlterm fails the size query and still has sixel.
         let mlterm = caps(b"\x1b[?1;0;1024S\x1b[?1;3;0S\x1b[6;16;10t\x1bP>|mlterm(3.9.3)\x1b\\\x1b[?63;1;2;3;4;6;7;15;18;22;29c", Some("truecolor"));
         assert_eq!(mlterm.sixel, Some(Sixel { colors: 1024, max: None }));

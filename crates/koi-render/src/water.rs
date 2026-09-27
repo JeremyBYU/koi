@@ -1,7 +1,9 @@
 use crate::gpu::Gpu;
 use bytemuck::{Pod, Zeroable};
 use koi_sim::{DT, Shadow, Splash};
-use koi_theme::{Bank, Corner, Dither, Floor, Flower, FoliageKind, HighlightStyle, Light, Outline, Palette, PaletteLock, PetalKind, Rgb, Rim, Style, Theme, Weather, linear};
+use koi_theme::{
+    Bank, Corner, Dither, Floor, Flower, FoliageKind, HighlightStyle, Light, Outline, Palette, PaletteLock, PetalKind, Rgb, Rim, Style, Theme, Weather, linear,
+};
 use std::f32::consts::{PI, TAU};
 
 const DAMP: f32 = 0.993;
@@ -208,7 +210,13 @@ pub(crate) fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
 pub(crate) fn steps(x: f32, n: f32, soft: f32) -> f32 {
     let v = x * n;
     let f = v - v.floor();
-    let edge = if soft > 0.0 { smoothstep(0.5 - soft / 2.0, 0.5 + soft / 2.0, f) } else if f >= 0.5 { 1.0 } else { 0.0 };
+    let edge = if soft > 0.0 {
+        smoothstep(0.5 - soft / 2.0, 0.5 + soft / 2.0, f)
+    } else if f >= 0.5 {
+        1.0
+    } else {
+        0.0
+    };
     (v.floor() + edge) / n
 }
 
@@ -231,14 +239,22 @@ pub(crate) fn lock_table(palette: &Palette) -> Vec<u32> {
         let l = (0.412_221_46 * r + 0.536_332_55 * g + 0.051_445_995 * b).cbrt();
         let m = (0.211_903_5 * r + 0.680_699_5 * g + 0.107_396_96 * b).cbrt();
         let s = (0.088_302_46 * r + 0.281_718_85 * g + 0.629_978_7 * b).cbrt();
-        [0.210_454_26 * l + 0.793_617_8 * m - 0.004_072_047 * s, 1.977_998_5 * l - 2.428_592_2 * m + 0.450_593_7 * s, 0.025_904_037 * l + 0.782_771_77 * m - 0.808_675_77 * s]
+        [
+            0.210_454_26 * l + 0.793_617_8 * m - 0.004_072_047 * s,
+            1.977_998_5 * l - 2.428_592_2 * m + 0.450_593_7 * s,
+            0.025_904_037 * l + 0.782_771_77 * m - 0.808_675_77 * s,
+        ]
     };
-    let labs: Vec<([f32; 3], u32)> = swatches.iter().map(|&[r, g, b]| (oklab(linear([r, g, b])), u32::from(r) | u32::from(g) << 8 | u32::from(b) << 16 | 255 << 24)).collect();
+    let labs: Vec<([f32; 3], u32)> =
+        swatches.iter().map(|&[r, g, b]| (oklab(linear([r, g, b])), u32::from(r) | u32::from(g) << 8 | u32::from(b) << 16 | 255 << 24)).collect();
     (0..LOCK_SIZE)
         .map(|i| {
             let centre = [i >> 10, (i >> 5) & 31, i & 31].map(|v| u8::try_from(v * 8 + 4).expect("bin centre fits a byte"));
             let lab = oklab(linear(centre));
-            labs.iter().map(|(s, packed)| ((s[0] - lab[0]).powi(2) + (s[1] - lab[1]).powi(2) + (s[2] - lab[2]).powi(2), *packed)).fold((f32::MAX, 0), |best, c| if c.0 < best.0 { c } else { best }).1
+            labs.iter()
+                .map(|(s, packed)| ((s[0] - lab[0]).powi(2) + (s[1] - lab[1]).powi(2) + (s[2] - lab[2]).powi(2), *packed))
+                .fold((f32::MAX, 0), |best, c| if c.0 < best.0 { c } else { best })
+                .1
         })
         .collect()
 }
@@ -273,7 +289,13 @@ impl Water {
     pub fn new(gpu: Option<&Gpu>, w: usize, h: usize, per_sim: [f32; 2], ratio: f32, theme: &Theme, seed: u64) -> Water {
         let backend = match gpu {
             Some(gpu) => Backend::Gpu(Box::new(GpuWater::new(gpu, w, h))),
-            None => Backend::Cpu(CpuWater { height: vec![0.0; w * h], prev_height: vec![0.0; w * h], statics: Vec::new(), koi_shade: vec![0.0; w * h], encode: srgb_table() }),
+            None => Backend::Cpu(CpuWater {
+                height: vec![0.0; w * h],
+                prev_height: vec![0.0; w * h],
+                statics: Vec::new(),
+                koi_shade: vec![0.0; w * h],
+                encode: srgb_table(),
+            }),
         };
         let mut water = Water {
             w,
@@ -309,7 +331,8 @@ impl Water {
         let shadow = linear(palette.shadow);
         let brightest = shadow.iter().copied().fold(0.001, f32::max);
         let shade = shadow.map(|c| c / brightest);
-        self.colors = [linear(palette.deep), linear(palette.mid), linear(palette.shallow), linear(palette.highlight), shade, linear(palette.cloud)].map(|[r, g, b]| [r, g, b, 0.0]);
+        self.colors = [linear(palette.deep), linear(palette.mid), linear(palette.shallow), linear(palette.highlight), shade, linear(palette.cloud)]
+            .map(|[r, g, b]| [r, g, b, 0.0]);
         (self.light, self.style) = (theme.light, theme.style);
         (self.weather, self.weather_amount) = (theme.scene.weather, theme.scene.weather_amount);
         self.firefly = mix3(linear(palette.ogon), linear(palette.highlight), 0.5);
@@ -622,7 +645,8 @@ impl Water {
                             let focus = (1.0 / jac.abs().max(0.3)).clamp(0.5, 2.2);
                             let lit = steps((sun * focus / 1.4).clamp(0.0, 1.0), p.tone_steps, p.band_softness) * 1.4 * (1.0 + 0.35 * lines * sun);
                             let clear = shallow.iter().copied().fold(0.001, f32::max);
-                            let floor: [f32; 3] = std::array::from_fn(|k| bed[k] * mix(1.0, shallow[k] / clear, 0.45) * (shade[k] * 0.4 + sun_col[k] * lit * 0.8));
+                            let floor: [f32; 3] =
+                                std::array::from_fn(|k| bed[k] * mix(1.0, shallow[k] / clear, 0.45) * (shade[k] * 0.4 + sun_col[k] * lit * 0.8));
                             let water = if depth < 0.5 { mix3(shallow, mid, depth * 2.0) } else { mix3(mid, deep, depth * 2.0 - 1.0) };
                             col = mix3(floor, scale3(water, (0.7 + 0.4 * open) * (1.0 - 0.3 * koi)), 0.15 + 0.72 * depth);
 
@@ -636,8 +660,8 @@ impl Water {
                                 let (row, offset) = (y as i32, (hash(0, y as i32, 61) * 4.0) as i32);
                                 let run = (x as i32 + offset) / 4;
                                 let long = 2 + (hash(run, row, 62) * 3.0) as i32;
-                                let ax = (run * 4 - offset).clamp(1, w as i32 - 2) as usize;
-                                if (x as i32 + offset) % 4 < long && y > 0 && y < h - 1 {
+                                let ax = (run * 4 - offset).clamp(1, (w as i32 - 2).max(1)) as usize;
+                                if (x as i32 + offset) % 4 < long && w > 2 && y > 0 && y < h - 1 {
                                     let a = y * w + ax;
                                     let dash = -((height[a + 1] - height[a - 1]) * p.sun_dir[0] + (height[a + w] - height[a - w]) * p.sun_dir[1]) * self.slope;
                                     if dash > p.glint_threshold {
@@ -862,7 +886,15 @@ impl Layout {
             }
             let (nx, ny) = ((x - cx) / (x - cx).hypot(y - cy), (y - cy) / (x - cx).hypot(y - cy));
             let along = (y - py).atan2(x - px) + (rand(&mut rng) - 0.5) * 0.5;
-            stones.push(Stone { x: x + nx * out, y: y + ny * out, a, b: a * (0.6 + 0.3 * rand(&mut rng)), cos: along.cos(), sin: along.sin(), tint: 0.9 + 0.18 * rand(&mut rng) });
+            stones.push(Stone {
+                x: x + nx * out,
+                y: y + ny * out,
+                a,
+                b: a * (0.6 + 0.3 * rand(&mut rng)),
+                cos: along.cos(),
+                sin: along.sin(),
+                tint: 0.9 + 0.18 * rand(&mut rng),
+            });
             if rand(&mut rng) < 0.35 {
                 let a = u * (0.05 + 0.03 * rand(&mut rng));
                 let out = u * 0.07;
@@ -906,13 +938,15 @@ impl Layout {
     fn sdf(&self, x: f32, y: f32) -> f32 {
         let (u, (hx, hy)) = (self.u, self.half);
         let (qx, qy) = ((x - self.cx).abs() - hx, (y - self.cy).abs() - hy);
-        (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - self.radius + (fbm(x / u * 3.0, y / u * 3.0, 1 << 16, self.s) - 0.5) * 0.08 * u
+        (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - self.radius
+            + (fbm(x / u * 3.0, y / u * 3.0, 1 << 16, self.s) - 0.5) * 0.08 * u
     }
 
     /// Water depth before banding, 0 at the shore to 1 in the deep middle.
     fn depth(&self, x: f32, y: f32) -> f32 {
         let (u, inset) = (self.u, self.inset);
-        let oval = ((x - self.cx) / (self.cx - inset)).hypot((y - self.cy) / (self.cy - inset)) + (fbm(x / u * 2.0, y / u * 2.0, 1 << 16, self.s + 2) - 0.5) * 0.3;
+        let oval =
+            ((x - self.cx) / (self.cx - inset)).hypot((y - self.cy) / (self.cy - inset)) + (fbm(x / u * 2.0, y / u * 2.0, 1 << 16, self.s + 2) - 0.5) * 0.3;
         smoothstep(0.0, 0.25 * u, -self.sdf(x, y)) * (1.0 - smoothstep(0.15, 0.95, oval))
     }
 }
@@ -945,7 +979,14 @@ fn paint(w: usize, h: usize, theme: &Theme, seed: u64) -> Vec<[f32; 4]> {
     let lily_light = linear(palette.lily_light);
     let (flower_col, white, ogon, food) = (linear(palette.lily_flower), linear(palette.koi_white), linear(palette.ogon), linear(palette.food));
     let sand = scale3(mix3(stone_light, food, 0.35), 0.85);
-    let pebbles = [stone_light, mix3(stone_light, food, 0.7), mix3(lily_light, stone_light, 0.6), mix3(stone_dark, stone_light, 0.5), mix3(stone_light, food, 0.3), scale3(food, 0.7)];
+    let pebbles = [
+        stone_light,
+        mix3(stone_light, food, 0.7),
+        mix3(lily_light, stone_light, 0.6),
+        mix3(stone_dark, stone_light, 0.5),
+        mix3(stone_light, food, 0.3),
+        scale3(food, 0.7),
+    ];
     let (floor_base, floor_patch) = match scene.floor {
         Floor::Sand => (sand, pebbles[2]),
         Floor::Pebbles => (scale3(mix3(stone_light, stone_dark, 0.3), 0.9), pebbles[2]),
@@ -1026,12 +1067,15 @@ fn paint(w: usize, h: usize, theme: &Theme, seed: u64) -> Vec<[f32; 4]> {
     };
 
     // One pebble at most per cell of a 0.075 u grid, fewer toward the deep middle. The grid
-    // has a margin of one cell, since each pixel looks at the cells around its own.
+    // has a margin of one cell, since each pixel looks at the cells around its own. It is
+    // walked by row and column, not by dividing one index: V8 (Chrome 149, node 24) crashed
+    // unrolling that signed division when compiling this for the web page.
     let cell = 0.075 * u;
     let cols = (w as f32 / cell).ceil() as i32 + 2;
-    let has_pebble: Vec<bool> = (0..cols * ((h as f32 / cell).ceil() as i32 + 2))
-        .map(|k| {
-            let (ki, kj) = (k % cols - 1, k / cols - 1);
+    let rows = (h as f32 / cell).ceil() as i32 + 2;
+    let has_pebble: Vec<bool> = (-1..rows - 1)
+        .flat_map(|kj| (-1..cols - 1).map(move |ki| (ki, kj)))
+        .map(|(ki, kj)| {
             let depth = layout.depth((ki as f32 + 0.5) * cell, (kj as f32 + 0.5) * cell);
             pebble_density > 0.0 && hash(ki, kj, s + 7) <= mix(0.75, -0.3, depth) * pebble_density.min(1.5)
         })
@@ -1046,7 +1090,7 @@ fn paint(w: usize, h: usize, theme: &Theme, seed: u64) -> Vec<[f32; 4]> {
     let (layout, pads, leaves, has_pebble) = (&layout, &pads, &leaves, &has_pebble);
     std::thread::scope(|scope| {
         for (((k, floors), lights), surfs) in floors.chunks_mut(band).enumerate().zip(lights.chunks_mut(band)).zip(surfs.chunks_mut(band)) {
-            scope.spawn(move || {
+            crate::spawn(scope, move || {
                 // Only the stones, pads and leaves (with their shadows) that reach this band's
                 // rows, in paint order.
                 let (top, bottom) = ((k * band / w) as f32, ((k * band + floors.len()) / w) as f32);
@@ -1059,13 +1103,19 @@ fn paint(w: usize, h: usize, theme: &Theme, seed: u64) -> Vec<[f32; 4]> {
                     let (x, y) = (i % w, i / w);
                     let (px, py) = (x as f32, y as f32);
                     let dist = -layout.sdf(px, py);
-                    let grain = if style.grain > 0.0 { (hash(x as i32, y as i32, s + 3) - 0.5) * 0.6 + (noise(px * 0.9, py * 0.25, 1 << 16, s + 4) - 0.5) * 0.8 } else { 0.0 };
+                    let grain = if style.grain > 0.0 {
+                        (hash(x as i32, y as i32, s + 3) - 0.5) * 0.6 + (noise(px * 0.9, py * 0.25, 1 << 16, s + 4) - 0.5) * 0.8
+                    } else {
+                        0.0
+                    };
                     let depth_raw = layout.depth(px, py);
                     // Ordered dither nudges the depth, so it only shows as a seam where bands meet.
                     let bayer = match style.dither {
                         Dither::None => 0.5,
                         Dither::Bayer2 => ([0.0, 2.0, 3.0, 1.0][(y & 1) * 2 + (x & 1)] + 0.5) / 4.0,
-                        Dither::Bayer4 => ([0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0][(y & 3) * 4 + (x & 3)] + 0.5) / 16.0,
+                        Dither::Bayer4 => {
+                            ([0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0][(y & 3) * 4 + (x & 3)] + 0.5) / 16.0
+                        }
                     };
                     let bands = f32::from(style.depth_bands);
                     let depth = steps((depth_raw + grain * 0.03 + (bayer - 0.5) * style.dither_strength / bands).clamp(0.0, 1.0), bands, soft);
@@ -1086,7 +1136,8 @@ fn paint(w: usize, h: usize, theme: &Theme, seed: u64) -> Vec<[f32; 4]> {
                             let rad = cell * (0.25 + 0.25 * hash(ki, kj, s + 10));
                             let turn = hash(ki, kj, s + 11) * PI;
                             let (dx, dy) = (px - ox, py - oy);
-                            let (lx, ly) = ((dx * turn.cos() + dy * turn.sin()) / rad, (-dx * turn.sin() + dy * turn.cos()) / (rad * (0.65 + 0.3 * hash(ki, kj, s + 12))));
+                            let (lx, ly) =
+                                ((dx * turn.cos() + dy * turn.sin()) / rad, (-dx * turn.sin() + dy * turn.cos()) / (rad * (0.65 + 0.3 * hash(ki, kj, s + 12))));
                             let r = lx.hypot(ly);
                             let under = (lx - 0.25 * len * turn.cos() + 0.3 * turn.sin()).hypot(ly + 0.25 * turn.sin() - 0.35 * len * turn.cos());
                             floor = scale3(floor, 1.0 - 0.3 * cast * (1.0 - smoothstep(0.85, 1.15, under)));
@@ -1108,9 +1159,21 @@ fn paint(w: usize, h: usize, theme: &Theme, seed: u64) -> Vec<[f32; 4]> {
                     let mut surf = [0.0f32; 4];
                     if dist < 0.5 {
                         let bank = match scene.bank {
-                            Bank::Moss => mix3(mix3(scale3(lily_dark, 0.75), stone_dark, 0.35), lily_light, 0.45 * smoothstep(0.45, 0.65, fbm(px / u * 8.0, py / u * 8.0, 1 << 16, s + 14))),
-                            Bank::Grass => mix3(mix3(lily_dark, lily_light, 0.35), lily_light, 0.35 * smoothstep(0.45, 0.6, noise(px / u * 30.0, py / u * 8.0, 1 << 16, s + 41))),
-                            Bank::Gravel => mix3(mix3(stone_dark, stone_light, 0.45), stone_light, 0.4 * smoothstep(0.3, 0.7, noise(px / (u * 0.012), py / (u * 0.012), 1 << 16, s + 42))),
+                            Bank::Moss => mix3(
+                                mix3(scale3(lily_dark, 0.75), stone_dark, 0.35),
+                                lily_light,
+                                0.45 * smoothstep(0.45, 0.65, fbm(px / u * 8.0, py / u * 8.0, 1 << 16, s + 14)),
+                            ),
+                            Bank::Grass => mix3(
+                                mix3(lily_dark, lily_light, 0.35),
+                                lily_light,
+                                0.35 * smoothstep(0.45, 0.6, noise(px / u * 30.0, py / u * 8.0, 1 << 16, s + 41)),
+                            ),
+                            Bank::Gravel => mix3(
+                                mix3(stone_dark, stone_light, 0.45),
+                                stone_light,
+                                0.4 * smoothstep(0.3, 0.7, noise(px / (u * 0.012), py / (u * 0.012), 1 << 16, s + 42)),
+                            ),
                         };
                         surf = over(surf, scale3(bank, 1.0 - 0.35 * cover), smoothstep(0.5, -0.5, dist));
                     }
@@ -1199,7 +1262,8 @@ fn paint(w: usize, h: usize, theme: &Theme, seed: u64) -> Vec<[f32; 4]> {
                         let facing = (dx * sun_dir[0] + dy * sun_dir[1]) / stone.a * 0.8 + nz * 0.6;
                         let tone = steps(((facing + 0.25) / 1.3 + grain * 0.08).clamp(0.0, 1.0), tones, soft);
                         let mut color = scale3(mix3(stone_cool, stone_warm, tone), stone.tint);
-                        let moss = smoothstep(0.6, 0.68, fbm(px / u * 12.0, py / u * 12.0, 1 << 16, s + 16) + 0.25 * nz - 0.15 * tone + (scene.moss - 1.0) * 0.2);
+                        let moss =
+                            smoothstep(0.6, 0.68, fbm(px / u * 12.0, py / u * 12.0, 1 << 16, s + 16) + 0.25 * nz - 0.15 * tone + (scene.moss - 1.0) * 0.2);
                         color = mix3(color, mix3(lily_dark, lily_light, 0.2 + 0.7 * tone), 0.85 * moss);
                         color = scale3(mix3(color, shade, 0.2 * smoothstep(0.8, 1.0, r)), 1.0 - 0.3 * smoothstep(0.8, 1.0, r));
                         if hard && r > 0.9 && (style.outline == Outline::Dark || facing < 0.2) {
@@ -1229,7 +1293,11 @@ fn paint(w: usize, h: usize, theme: &Theme, seed: u64) -> Vec<[f32; 4]> {
                         surf = over(surf, mix3(scale3(base, side), mix3(base, sun_col, 0.3), 0.4 * rib), alpha);
                     }
 
-                    let damp = if dist < 1.0 || surf[3] > 0.9 { 0.0 } else { DAMP * mix(0.9, 1.0, smoothstep(0.0, 0.07 * u, dist)) * if surf[3] > 0.5 { 0.97 } else { 1.0 } };
+                    let damp = if dist < 1.0 || surf[3] > 0.9 {
+                        0.0
+                    } else {
+                        DAMP * mix(0.9, 1.0, smoothstep(0.0, 0.07 * u, dist)) * if surf[3] > 0.5 { 0.97 } else { 1.0 }
+                    };
                     *floor_out = [floor[0], floor[1], floor[2], depth];
                     *light_out = [sun, cover, grain, damp];
                     *surf_out = surf;
@@ -1240,7 +1308,7 @@ fn paint(w: usize, h: usize, theme: &Theme, seed: u64) -> Vec<[f32; 4]> {
         let cells = 8;
         let size = TEX as f32 / cells as f32;
         for (k, rows) in tile.chunks_mut(TEX * 16).enumerate() {
-            scope.spawn(move || {
+            crate::spawn(scope, move || {
                 for (j, texel) in rows.iter_mut().enumerate() {
                     let (tx, ty) = (j % TEX, k * 16 + j / TEX);
                     let (x, y) = (tx as f32, ty as f32);
@@ -1277,7 +1345,9 @@ impl GpuWater {
     fn new(gpu: &Gpu, w: usize, h: usize) -> GpuWater {
         let device = &gpu.device;
         let pixels = u64::try_from(w * h).expect("water size fits u64");
-        let storage = |label, size, usage| device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size, usage: wgpu::BufferUsages::STORAGE | usage, mapped_at_creation: false });
+        let storage = |label, size, usage| {
+            device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size, usage: wgpu::BufferUsages::STORAGE | usage, mapped_at_creation: false })
+        };
         // Copyable both ways, so `Water::regrid` can carry the waves to a new grid.
         let heights = ["height a", "height b"].map(|label| storage(label, pixels * 4, wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST));
         let splashes = storage("splashes", 16 * MAX_SPLASHES as u64, wgpu::BufferUsages::COPY_DST);
@@ -1285,8 +1355,17 @@ impl GpuWater {
         let petals = storage("petals", 32 * (PETALS + FIREFLIES) as u64, wgpu::BufferUsages::COPY_DST);
         let lock = storage("palette lock", 4 * LOCK_SIZE as u64, wgpu::BufferUsages::COPY_DST);
         let out = storage("water out", pixels * 4, wgpu::BufferUsages::COPY_SRC);
-        let still = storage("statics", u64::try_from((3 * w * h + TEX * TEX) * std::mem::size_of::<[f32; 4]>()).expect("statics fit u64"), wgpu::BufferUsages::COPY_DST);
-        let readback = device.create_buffer(&wgpu::BufferDescriptor { label: Some("water readback"), size: pixels * 4, usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let still = storage(
+            "statics",
+            u64::try_from((3 * w * h + TEX * TEX) * std::mem::size_of::<[f32; 4]>()).expect("statics fit u64"),
+            wgpu::BufferUsages::COPY_DST,
+        );
+        let readback = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("water readback"),
+            size: pixels * 4,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let params = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("water params"),
             size: std::mem::size_of::<Params>() as u64,
@@ -1304,16 +1383,28 @@ impl GpuWater {
         let write = wgpu::BufferBindingType::Storage { read_only: false };
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
-            entries: &[entry(0, wgpu::BufferBindingType::Uniform), entry(1, read), entry(2, write), entry(3, read), entry(4, read), entry(5, write), entry(6, read), entry(7, read), entry(8, read)],
+            entries: &[
+                entry(0, wgpu::BufferBindingType::Uniform),
+                entry(1, read),
+                entry(2, write),
+                entry(3, read),
+                entry(4, read),
+                entry(5, write),
+                entry(6, read),
+                entry(7, read),
+                entry(8, read),
+            ],
         });
         let bind_groups = [0, 1].map(|k| {
             let buffers = [&params, &heights[k], &heights[1 - k], &splashes, &shadows, &out, &still, &petals, &lock];
-            let entries: Vec<wgpu::BindGroupEntry> = (0u32..).zip(buffers).map(|(binding, b)| wgpu::BindGroupEntry { binding, resource: b.as_entire_binding() }).collect();
+            let entries: Vec<wgpu::BindGroupEntry> =
+                (0u32..).zip(buffers).map(|(binding, b)| wgpu::BindGroupEntry { binding, resource: b.as_entire_binding() }).collect();
             device.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &layout, entries: &entries })
         });
 
         let module = device.create_shader_module(wgpu::include_wgsl!("water.wgsl"));
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
+        let pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&layout)], immediate_size: 0 });
         let pipeline = |entry_point| {
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                 label: Some(entry_point),
@@ -1324,7 +1415,22 @@ impl GpuWater {
                 cache: None,
             })
         };
-        GpuWater { gpu: gpu.clone(), wave: pipeline("wave"), shade: pipeline("shade"), bind_groups, current: 0, params, heights, statics: still, splashes, shadows, petals, lock, out, readback }
+        GpuWater {
+            gpu: gpu.clone(),
+            wave: pipeline("wave"),
+            shade: pipeline("shade"),
+            bind_groups,
+            current: 0,
+            params,
+            heights,
+            statics: still,
+            splashes,
+            shadows,
+            petals,
+            lock,
+            out,
+            readback,
+        }
     }
 }
 

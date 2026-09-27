@@ -156,7 +156,7 @@ impl Look {
             let rows = h.div_ceil(std::thread::available_parallelism().map_or(1, |n| n.get())).max(1);
             std::thread::scope(|scope| {
                 for (band, px) in px.chunks_mut(w * rows).enumerate() {
-                    scope.spawn(move || {
+                    crate::spawn(scope, move || {
                         let mut canvas = Canvas { w, top: band * rows, unit: 1.0, px };
                         let top = if h < 30 { 1.0 } else { 2.0 } * k;
                         let (a, b) = ((w as f32 - 9.0 * k) / 2.0, (h as f32 - top - k) / 2.0);
@@ -212,14 +212,35 @@ impl Look {
                 self.mark(&mut icons, mark, *x, *y);
             }
             let p = &self.palette;
-            let snap: Vec<[f32; 3]> = [c.ink, c.dim, c.accent, c.lit, c.fill, c.outline, p.food, p.lily_flower, p.lily_light, p.lily_dark, p.koi_white, p.koi_red, p.koi_sumi, p.ogon, p.asagi_red, p.asagi_blue, p.highlight, p.shallow, p.mid, p.deep]
-                .into_iter()
-                .chain(marks.iter().flat_map(|(mark, _, _)| match mark {
-                    Mark::Swatch(s) => vec![s.shallow, s.mid, s.deep, s.pad, s.koi],
-                    _ => Vec::new(),
-                }))
-                .map(linear)
-                .collect();
+            let snap: Vec<[f32; 3]> = [
+                c.ink,
+                c.dim,
+                c.accent,
+                c.lit,
+                c.fill,
+                c.outline,
+                p.food,
+                p.lily_flower,
+                p.lily_light,
+                p.lily_dark,
+                p.koi_white,
+                p.koi_red,
+                p.koi_sumi,
+                p.ogon,
+                p.asagi_red,
+                p.asagi_blue,
+                p.highlight,
+                p.shallow,
+                p.mid,
+                p.deep,
+            ]
+            .into_iter()
+            .chain(marks.iter().flat_map(|(mark, _, _)| match mark {
+                Mark::Swatch(s) => vec![s.shallow, s.mid, s.deep, s.pad, s.koi],
+                _ => Vec::new(),
+            }))
+            .map(linear)
+            .collect();
             for (at, icon) in icon_px.iter().enumerate() {
                 let (x, y) = ((at % lw) as i32, (at / lw) as i32);
                 if icon[3] < 0.43 || !inside(x, y) {
@@ -254,7 +275,14 @@ impl Look {
                 canvas.fill(c.ink, 1.0, |px, py| ellipse(px, py, x - 4.0 * k, y + 6.0 * k, 5.0 * k, 3.8 * k, -0.45));
                 canvas.fill(c.ink, 1.0, |px, py| {
                     let stem = segment(px, py, x + 0.4 * k, y + 5.0 * k, x + 0.4 * k, y - 10.0 * k);
-                    let flag = segment(px, py, x + 0.4 * k, y - 10.0 * k, x + 3.0 * k, y - 6.5 * k).min(segment(px, py, x + 3.0 * k, y - 6.5 * k, x + 8.0 * k, y - 4.0 * k));
+                    let flag = segment(px, py, x + 0.4 * k, y - 10.0 * k, x + 3.0 * k, y - 6.5 * k).min(segment(
+                        px,
+                        py,
+                        x + 3.0 * k,
+                        y - 6.5 * k,
+                        x + 8.0 * k,
+                        y - 4.0 * k,
+                    ));
                     stem.min(flag) - 1.2 * k
                 });
                 if *muted {
@@ -298,7 +326,10 @@ impl Look {
                         1 => {
                             let s = 1.6 * k;
                             let (sin, cos) = (i as f32).sin_cos();
-                            let corners: Vec<(f32, f32)> = [(-2.6, -1.0), (0.5, -2.4), (2.6, 0.2), (0.2, 2.2), (-2.0, 1.4)].iter().map(|&(u, v)| (fx + (u * cos - v * sin) * s, fy + (u * sin + v * cos) * s)).collect();
+                            let corners: Vec<(f32, f32)> = [(-2.6, -1.0), (0.5, -2.4), (2.6, 0.2), (0.2, 2.2), (-2.0, 1.4)]
+                                .iter()
+                                .map(|&(u, v)| (fx + (u * cos - v * sin) * s, fy + (u * sin + v * cos) * s))
+                                .collect();
                             let color = if i % 2 == 1 { mix(p.koi_white, p.food, 0.25) } else { mix(p.asagi_red, p.koi_white, 0.3) };
                             canvas.fill(color, 1.0, |px, py| polygon(px, py, &corners));
                             canvas.fill(c.ink, 1.0, |px, py| polygon(px, py, &corners).abs() - edge);
@@ -359,7 +390,9 @@ impl Look {
                 for ray in 0..rays {
                     let a = if noon { ray as f32 / 8.0 * std::f32::consts::TAU } else { std::f32::consts::PI * (1.0 + (ray as f32 + 0.5) / rays as f32) };
                     let (sin, cos) = a.sin_cos();
-                    canvas.fill(color, 1.0, |px, py| (segment(px, py, x + cos * 10.0 * k, sy + sin * 10.0 * k, x + cos * 13.5 * k, sy + sin * 13.5 * k) - k).max(above(py)));
+                    canvas.fill(color, 1.0, |px, py| {
+                        (segment(px, py, x + cos * 10.0 * k, sy + sin * 10.0 * k, x + cos * 13.5 * k, sy + sin * 13.5 * k) - k).max(above(py))
+                    });
                 }
                 canvas.fill(color, 1.0, |px, py| circle(px, py, x, sy, 7.0 * k).max(above(py)));
                 canvas.fill(mix(color, c.ink, 0.4), 1.0, |px, py| (circle(px, py, x, sy, 7.0 * k).abs() - 0.6 * k).max(above(py)));
@@ -376,7 +409,11 @@ impl Look {
                 let (ex, ey) = (ax + r * end.cos(), ay + r * end.sin());
                 canvas.fill(c.ink, 1.0, |px, py| {
                     let angle = (py - ay).atan2(px - ax);
-                    let arc = if angle <= end || angle >= start { ((px - ax).hypot(py - ay) - r).abs() } else { (px - sx).hypot(py - sy).min((px - ex).hypot(py - ey)) };
+                    let arc = if angle <= end || angle >= start {
+                        ((px - ax).hypot(py - ay) - r).abs()
+                    } else {
+                        (px - sx).hypot(py - sy).min((px - ex).hypot(py - ey))
+                    };
                     arc.min(segment(px, py, ex, ey, x, y + 2.5 * k)) - 1.3 * k
                 });
                 canvas.fill(c.ink, 1.0, |px, py| circle(px, py, x, y + 6.5 * k, 1.6 * k));

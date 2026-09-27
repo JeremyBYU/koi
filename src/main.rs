@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 mod config;
 mod hud;
 mod layers;
@@ -8,7 +9,7 @@ use koi_audio::{Audio, Event, Settings, Status};
 use koi_render::{Gpu, Poser, Water};
 use koi_sim::{DT, FoodKind, Pose, School};
 use koi_term::{self as term, Caps, Input};
-use koi_theme::{Catalog, ROOT, Rgb, Theme};
+use koi_theme::{Catalog, ROOT, Rgb, Theme, Time};
 use layers::{Grid, Layers, Tier};
 use state::State;
 use std::collections::VecDeque;
@@ -24,7 +25,8 @@ const CPU_FISH_PX: usize = 10;
 /// The frame rate a terminal that cannot keep up is brought down to, at the slowest.
 const FPS_FLOOR: u32 = 8;
 
-const USAGE: &str = "usage: koi [--config PATH] [--theme NAME] [--backend gpu|cpu] [--protocol NAME] [--list-themes] [--print-default-config] [--version] [-h | --help]";
+const USAGE: &str =
+    "usage: koi [--config PATH] [--theme NAME] [--backend gpu|cpu] [--protocol NAME] [--list-themes] [--print-default-config] [--version] [-h | --help]";
 
 const HELP: &str = "A koi pond for the terminal.
 
@@ -217,7 +219,17 @@ fn cell_px(caps: &Caps) -> (usize, usize) {
 /// sizes, needs new water, koi sprites and layers, but the same pond. `tier` sets how the
 /// grid's cells are sized, and `tmux` is the image id of tmux mode for the Kitty tiers.
 #[allow(clippy::too_many_arguments)]
-fn build(cfg: &Config, theme: &Theme, gpu: Option<&Gpu>, seed: u64, out: &mut Vec<u8>, keep: Option<Scene>, tier: Tier, tmux: Option<u8>, caps: &Caps) -> io::Result<Scene> {
+fn build(
+    cfg: &Config,
+    theme: &Theme,
+    gpu: Option<&Gpu>,
+    seed: u64,
+    out: &mut Vec<u8>,
+    keep: Option<Scene>,
+    tier: Tier,
+    tmux: Option<u8>,
+    caps: &Caps,
+) -> io::Result<Scene> {
     // Half blocks give a cell two pixels, so the water is drawn at that size.
     let water_px = if tier == Tier::Blocks { 1 } else { cfg.render.water_px.max(1) };
     // Posing on the CPU costs the square of `fish_px`, so a HiDPI window's own pixels would
@@ -302,7 +314,17 @@ fn stamps(paths: &[PathBuf]) -> Vec<Option<SystemTime>> {
 /// `terminal` is the protocol setting, what the terminal said it can do, and whether it runs
 /// in tmux. `tmux` is the image id of tmux mode.
 #[allow(clippy::too_many_arguments)]
-fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, mut state: State, gpu: Option<&Gpu>, audio: Option<&Audio>, terminal: (Protocol, Caps, bool), tmux: Option<u8>, warnings: &mut Vec<String>) -> io::Result<()> {
+fn run(
+    mut cfg: Config,
+    config_path: Option<&Path>,
+    theme_arg: Option<String>,
+    mut state: State,
+    gpu: Option<&Gpu>,
+    audio: Option<&Audio>,
+    terminal: (Protocol, Caps, bool),
+    tmux: Option<u8>,
+    warnings: &mut Vec<String>,
+) -> io::Result<()> {
     let (mut setting, mut caps, in_tmux) = terminal;
     // Some terminals give the window's size as their largest sixel image, so a window made
     // larger later is still measured against its size at the start.
@@ -326,6 +348,9 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
         }
     };
     warnings.extend(theme.warnings.iter().cloned());
+    if let Some(audio) = audio {
+        audio.send(Event::Night(theme.summary.time == Time::Night));
+    }
     let watch = |theme: &Theme| -> Vec<PathBuf> { theme.files.iter().chain(&themes_dir).chain(&config_file).cloned().collect() };
     let mut watched = watch(&theme);
     let mut seen = stamps(&watched);
@@ -393,7 +418,18 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
         let darting = scene.school.max_speed_ratio() > cfg.fps.dart_speed;
         let hud_fading = hud.settings.show != Show::Hidden && hud.fading(now);
         let petting = scene.school.fish.iter().any(|f| f.pose().joy > 0.05);
-        let reason = [(focused, "focused"), (food_in_water, "food"), (recent_input, "input"), (ripples, "ripples"), (darting, "darting"), (petting, "petting"), (hud_fading, "hud")].iter().find(|r| r.0).map_or("calm", |r| r.1);
+        let reason = [
+            (focused, "focused"),
+            (food_in_water, "food"),
+            (recent_input, "input"),
+            (ripples, "ripples"),
+            (darting, "darting"),
+            (petting, "petting"),
+            (hud_fading, "hud"),
+        ]
+        .iter()
+        .find(|r| r.0)
+        .map_or("calm", |r| r.1);
         let wanted = if reason == "calm" { cfg.fps.unfocused_calm } else { cfg.fps.focused }.min(tier.fps_cap(theme.style.pixel_px > 0));
         let reason = if ceiling < wanted { "slow terminal" } else { reason };
         let target = wanted.min(ceiling).max(1);
@@ -411,7 +447,8 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
         pending.drain(..used);
         for event in events {
             // A hidden HUD still answers its keys, but the pointer only ever meets the pond.
-            let reply = if hud.settings.show != Show::Hidden || matches!(event, Input::Key(_) | Input::Escape) { hud.input(&event, now) } else { hud::Reply::Pass };
+            let reply =
+                if hud.settings.show != Show::Hidden || matches!(event, Input::Key(_) | Input::Escape) { hud.input(&event, now) } else { hud::Reply::Pass };
             match reply {
                 hud::Reply::Took => {
                     last_input = now;
@@ -462,7 +499,8 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
                     let food = hud.food();
                     let (cols, rows) = (scene.layers.grid.cols, scene.layers.grid.rows);
                     let (w, h) = (scene.layers.grid.water_w as f32, scene.layers.grid.water_h as f32);
-                    let (x, y, pan) = ((col as f32 - 0.5) * w / cols as f32, (row as f32 - 0.5) * h / rows as f32, (col as f32 - 0.5) / cols as f32 * 2.0 - 1.0);
+                    let (x, y, pan) =
+                        ((col as f32 - 0.5) * w / cols as f32, (row as f32 - 0.5) * h / rows as f32, (col as f32 - 0.5) / cols as f32 * 2.0 - 1.0);
                     if cfg.input.pet_click && scene.school.pet(x, y, 0.25, 6.0).is_some() {
                         holding = true;
                         if let Some(audio) = audio {
@@ -584,6 +622,9 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
                         }
                     }
                     theme = next;
+                    if let Some(audio) = audio {
+                        audio.send(Event::Night(theme.summary.time == Time::Night));
+                    }
                     watched = watch(&theme);
                     seen = stamps(&watched);
                     hud.set_theme(&theme, &catalog, now);
@@ -706,12 +747,18 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
         } else if let Some(t) = shown {
             Some((format!(" {}", t.text), palette.shadow, if t.error { palette.ui_accent } else { palette.ui_text }))
         } else {
-            warnings.first().filter(|_| now - started < Duration::from_secs(10)).map(|first| (format!(" {first} (details on exit)"), palette.deep, palette.ui_text))
+            warnings
+                .first()
+                .filter(|_| now - started < Duration::from_secs(10))
+                .map(|first| (format!(" {first} (details on exit)"), palette.deep, palette.ui_text))
         };
         // One line only: a wrapped second line would not be cleared by the next update.
         let overlay_cells = text.as_ref().map(|(t, ..)| t.chars().take(scene.layers.grid.cols.saturating_sub(1)).count() + 1);
         let overlay = text.map(|(t, [br, bg, bb], [fr, fg, fb]): (String, Rgb, Rgb)| {
-            format!("\x1b[48;2;{br};{bg};{bb}m\x1b[38;2;{fr};{fg};{fb}m{} \x1b[0m", t.chars().take(scene.layers.grid.cols.saturating_sub(1)).collect::<String>())
+            format!(
+                "\x1b[48;2;{br};{bg};{bb}m\x1b[38;2;{fr};{fg};{fb}m{} \x1b[0m",
+                t.chars().take(scene.layers.grid.cols.saturating_sub(1)).collect::<String>()
+            )
         });
 
         let blend = ((frame_at - sim_time).as_secs_f32() / DT).min(1.0);
@@ -742,7 +789,15 @@ fn run(mut cfg: Config, config_path: Option<&Path>, theme_arg: Option<String>, m
             cells.extend(overlay_cells.map(|n| (1, 1, n)));
             scene.layers.send(&mut out, overlay.as_deref(), &cells)?;
         } else {
-            scene.layers.encode(&mut out, &scene.school, &poses, &mut scene.poser, water.map(|rgba| (rgba, w, h)), overlay.as_deref(), cfg.fps.send_when_unchanged)?;
+            scene.layers.encode(
+                &mut out,
+                &scene.school,
+                &poses,
+                &mut scene.poser,
+                water.map(|rgba| (rgba, w, h)),
+                overlay.as_deref(),
+                cfg.fps.send_when_unchanged,
+            )?;
             if hud_shown {
                 hud.draw(&mut out, &mut scene.layers.ring, now)?;
             }

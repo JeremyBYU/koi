@@ -297,6 +297,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "errno"
+version = "0.3.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "foldhash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -461,9 +471,10 @@ dependencies = [
 
 [[package]]
 name = "koi-audio"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "koi-sim",
+ "koi-synth",
  "rodio",
  "serde_json",
  "symphonia",
@@ -471,7 +482,7 @@ dependencies = [
 
 [[package]]
 name = "koi-pond"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "icy_sixel",
  "koi-audio",
@@ -485,7 +496,7 @@ dependencies = [
 
 [[package]]
 name = "koi-render"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "bytemuck",
  "koi-sim",
@@ -496,24 +507,43 @@ dependencies = [
 
 [[package]]
 name = "koi-sim"
-version = "0.3.0"
+version = "0.4.0"
+
+[[package]]
+name = "koi-synth"
+version = "0.4.0"
+dependencies = [
+ "koi-sim",
+]
 
 [[package]]
 name = "koi-term"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64",
- "libc",
  "miniz_oxide",
+ "rustix",
+ "signal-hook",
  "windows-sys 0.61.2",
 ]
 
 [[package]]
 name = "koi-theme"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "serde",
  "toml",
+]
+
+[[package]]
+name = "koi-web"
+version = "0.4.0"
+dependencies = [
+ "koi-render",
+ "koi-sim",
+ "koi-synth",
+ "koi-theme",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -543,6 +573,12 @@ name = "libm"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
+
+[[package]]
+name = "linux-raw-sys"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "litrs"
@@ -1143,6 +1179,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
+name = "rustix"
+version = "1.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+dependencies = [
+ "bitflags 2.13.2",
+ "errno",
+ "libc",
+ "linux-raw-sys",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1222,6 +1271,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6662b5879511e06e8999a8a235d848113e942c9124f211511b16466ee2995f26"
 dependencies = [
  "serde_core",
+]
+
+[[package]]
+name = "signal-hook"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2a0c28ca5908dbdbcd52e6fdaa00358ab88637f8ab33e1f188dd510eb44b53d"
+dependencies = [
+ "libc",
+ "signal-hook-registry",
+]
+
+[[package]]
+name = "signal-hook-registry"
+version = "1.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+dependencies = [
+ "errno",
+ "libc",
 ]
 
 [[package]]

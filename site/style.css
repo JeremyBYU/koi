@@ -1,0 +1,439 @@
+/* The page is the garden around the pond: every colour comes from the scene (Pond.page_style
+   sets them on the root), and eases to the next scene's when it changes. These are Summer
+   Garden's, for before the pond loads. */
+:root {
+  --ground: #e9ebe2;
+  --ink: #2f3a35;
+  --dim: #6f7a72;
+  --accent: #d9a441;
+  --well: #dfe1d6;
+  --rim: #a3aa9c;
+  --stone: #eef0e8;
+  --stone-ink: #2f3a35;
+  --stone-dim: #7d877f;
+  --stone-line: #7c8676;
+  --gutter: clamp(16px, 4vw, 40px);
+  --measure: 34rem;
+  --serif: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+  --sans: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 17px/1.65 var(--sans);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* A new scene's colours ease in; the first ones, set as the page loads, do not. */
+.settled {
+  transition: background-color 1.6s ease, color 1.6s ease;
+}
+
+.settled .pond,
+.settled pre {
+  transition: background-color 1.6s ease, box-shadow 1.6s ease;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  padding: 0 var(--gutter) max(var(--gutter), env(safe-area-inset-bottom));
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  text-decoration-thickness: 3px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+code,
+kbd,
+pre {
+  font-family: var(--mono);
+  font-size: 0.86em;
+}
+
+.top,
+main,
+.credits {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+/* The wordmark sets the scene's name beside it, as a sign by a garden gate would. */
+.top {
+  display: flex;
+  align-items: baseline;
+  gap: 0 1.1rem;
+  flex-wrap: wrap;
+  padding: max(18px, env(safe-area-inset-top)) 0 14px;
+}
+
+.mark {
+  margin: 0;
+  font: 700 clamp(2.4rem, 5vw, 3.2rem) / 1 var(--serif);
+  letter-spacing: -0.02em;
+}
+
+.scene {
+  margin: 0;
+  color: var(--dim);
+  font-family: var(--serif);
+  font-size: 1.05rem;
+}
+
+.source {
+  margin-left: auto;
+  font-size: 0.92rem;
+}
+
+/* The pond. Its rim is a band of the scene's stone, like the edge of the water. */
+.pond {
+  position: relative;
+  height: clamp(340px, 74svh, 860px);
+  border-radius: clamp(18px, 3vw, 34px);
+  background: var(--rim);
+  box-shadow: 0 0 0 clamp(4px, 0.7vw, 8px) var(--rim);
+  overflow: hidden;
+}
+
+.pond > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.pond.pixel > canvas {
+  image-rendering: pixelated;
+}
+
+.loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--stone);
+  font-family: var(--serif);
+  font-size: 1.2rem;
+}
+
+.hint {
+  max-width: var(--measure);
+  margin: 1.1rem 0 0;
+  color: var(--dim);
+}
+
+/* The HUD: the game's own painted stones along the bottom of the water. Sizes follow --cell,
+   the terminal's cell height, which the script sets from the pond's width. */
+.hud {
+  --cell: 20px;
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--cell) * 0.55);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: calc(var(--cell) * 0.35);
+  transition: opacity 0.4s ease;
+}
+
+.hud.away {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hud button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hud canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pebble {
+  display: block;
+  width: calc(var(--cell) * 3);
+  height: calc(var(--cell) * 3);
+  border-radius: 40%;
+}
+
+.pebble-slot {
+  position: relative;
+}
+
+/* A scene with one time of day: the time stone rests, and says so when tapped. */
+.pebble.only {
+  opacity: 0.55;
+}
+
+.chip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--cell) * 0.4);
+  transform: translateX(-50%);
+  margin: 0;
+  padding: calc(var(--cell) * 0.2) calc(var(--cell) * 0.6);
+  border-radius: 999px;
+  background: var(--stone);
+  box-shadow: 0 0 0 2px var(--stone-line);
+  color: var(--stone-ink);
+  font-size: calc(var(--cell) * 0.7);
+  white-space: nowrap;
+}
+
+.music {
+  position: relative;
+  height: calc(var(--cell) * 3);
+}
+
+.music .zone {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 40%;
+}
+
+.music .note {
+  left: 0;
+  width: calc(var(--cell) * 2.6);
+}
+
+.music .next {
+  right: calc(var(--cell) * 0.7);
+  width: calc(var(--cell) * 2);
+}
+
+.music .dots {
+  right: calc(var(--cell) * 2.8);
+  width: calc(var(--cell) * 2.6);
+}
+
+.music .title {
+  position: absolute;
+  left: calc(var(--cell) * 2.6);
+  right: calc(var(--cell) * 5.6);
+  top: 0;
+  height: calc(var(--cell) * 2.8);
+  display: flex;
+  align-items: center;
+  color: var(--stone-ink);
+  font-family: var(--mono);
+  font-size: calc(var(--cell) * 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.music.off .title {
+  color: var(--stone-dim);
+}
+
+.tray {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--cell) * 0.3);
+  transform: translateX(-50%);
+  display: flex;
+  gap: calc(var(--cell) * 0.15);
+  padding: calc(var(--cell) * 0.3);
+  border-radius: calc(var(--cell) * 1.4);
+  background: color-mix(in srgb, var(--stone) 92%, transparent);
+  box-shadow: 0 0 0 2px var(--stone-line);
+}
+
+.tray button {
+  width: calc(var(--cell) * 2.6);
+  height: calc(var(--cell) * 2.6);
+  border-radius: 40%;
+}
+
+.tray button[aria-checked="true"] {
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+/* The help card, in the stones' colours. */
+.card {
+  width: min(30rem, calc(100% - 2 * var(--gutter)));
+  max-height: calc(100% - 2rem);
+  padding: 1.4rem 1.6rem 1.2rem;
+  border: 2px solid var(--stone-line);
+  border-radius: 26px;
+  background: var(--stone);
+  color: var(--stone-ink);
+  overflow: auto;
+}
+
+.card::backdrop {
+  background: color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+.card h2 {
+  margin: 0 0 0.4rem;
+  font: 700 1.15rem/1.3 var(--serif);
+}
+
+.card h2 + dl {
+  margin-top: 0;
+}
+
+.card dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1.2rem;
+  margin: 0 0 1.2rem;
+}
+
+.card dt {
+  color: var(--stone-ink);
+}
+
+.card dd {
+  margin: 0;
+  color: var(--stone-dim);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.7em;
+  padding: 0 0.35em;
+  border: 1.5px solid var(--stone-line);
+  border-radius: 0.5em;
+  text-align: center;
+}
+
+.close {
+  padding: 0.4rem 1.1rem;
+  border: 2px solid var(--stone-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--stone-ink);
+  font: 500 0.95rem var(--sans);
+  cursor: pointer;
+}
+
+/* Below the pond: how to take it home. */
+.terminal {
+  display: grid;
+  grid-template-columns: minmax(0, var(--measure)) minmax(0, 1fr);
+  gap: 1.5rem clamp(2rem, 6vw, 5rem);
+  margin-top: clamp(3.5rem, 9vw, 6.5rem);
+}
+
+.terminal h2 {
+  margin: 0 0 0.8rem;
+  font: 700 clamp(1.5rem, 3vw, 1.9rem) / 1.25 var(--serif);
+}
+
+.terminal p {
+  margin: 0 0 1rem;
+}
+
+.install {
+  padding-top: 0.4rem;
+}
+
+pre {
+  margin: 0 0 1.4rem;
+  padding: 1rem 1.2rem;
+  border-radius: 14px;
+  background: var(--well);
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+caption {
+  padding-bottom: 0.3rem;
+  color: var(--dim);
+  text-align: left;
+}
+
+th,
+td {
+  padding: 0.45rem 0;
+  border-top: 1px solid color-mix(in srgb, var(--dim) 35%, transparent);
+  font-weight: 400;
+  text-align: left;
+  vertical-align: baseline;
+}
+
+td {
+  padding-left: 1rem;
+  color: var(--dim);
+}
+
+.credits {
+  margin-top: clamp(3rem, 8vw, 5.5rem);
+  padding: 1.4rem 0 0.4rem;
+  border-top: 1px solid color-mix(in srgb, var(--dim) 35%, transparent);
+  color: var(--dim);
+  font-size: 0.86rem;
+}
+
+.credits p {
+  max-width: 44rem;
+  margin: 0 0 0.6rem;
+}
+
+@media (max-width: 760px) {
+  .terminal {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .source {
+    margin-left: 0;
+    flex-basis: 100%;
+    order: 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settled,
+  .settled .pond,
+  .settled pre,
+  .hud {
+    transition: none;
+  }
+}

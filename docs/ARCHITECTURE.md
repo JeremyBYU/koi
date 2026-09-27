@@ -8,9 +8,11 @@
 |---|---|---|---|
 | `koi-sim` | `crates/koi-sim` | Koi steering, moods, feeding and food, petting and its bubbles, the fixed step `DT`, and the `Splash` and `Shadow` records the water reads. No GPU, terminal or audio code. | nothing |
 | `koi-theme` | `crates/koi-theme` | Theme files: the built-in themes (compiled in from `themes/`), user themes, `extends` resolution, derived palette slots, and stepping through families and times. `Palette`, `Light`, `Style`, `Scene`. | serde, toml |
-| `koi-render` | `crates/koi-render` | The headless GPU device (`Gpu`: Vulkan, Metal on macOS, DX12 on Windows), the water (`Water`, `water.wgsl`) and the koi sprites (`Poser`, `koi.wgsl`), each with a GPU and a CPU path, painted from a `Theme`. The pond layout comes from `Layout::new(w, h, seed)`, which never sees the theme. Koi outlines, and the fade of a diving koi, are drawn in the pose pass. Pixel themes: hard-edged koi, dither, dash glints and the palette lock table. Weather: rain, mist, fireflies. A petted koi's tail flutter and head shimmer. Food and bubble sprites (`food_sprite`, `bubble_sprite`) and HUD stones and icons (`hud::Look`). | `koi-sim`, `koi-theme`, wgpu |
-| `koi-term` | `crates/koi-term` | Raw mode, alternate screen, focus and mouse reporting of presses, releases and drags (`report_motion` adds pointer motion for the HUD's hover), restore on exit and on panic, signals, `winsize`, the terminal probe and `Caps`, `read_input`, `parse_input` (keys, clicks, releases, drags, scroll, motion, a lone Esc, Kitty graphics answers), the shm ring and its direct (inline, zlib) mode, removal of shm left by killed runs, and for tmux the passthrough wrapper and Unicode placeholder cells. What differs per platform is in `sys_unix.rs` and `sys_windows.rs` (see "Windows"). | libc on Unix, windows-sys on Windows, base64, miniz_oxide |
-| `koi-audio` | `crates/koi-audio` | Music with crossfades and per-track loudness normalization, the generated ambient layer, the food chimes, one per food kind on the yo scale, and the petting bloop, on their own threads. | `koi-sim`, rodio, symphonia |
+| `koi-render` | `crates/koi-render` | The headless GPU device (`Gpu`: Vulkan, Metal on macOS, DX12 on Windows), the water (`Water`, `water.wgsl`) and the koi sprites (`Poser`, `koi.wgsl`), each with a GPU and a CPU path, painted from a `Theme`. The pond layout comes from `Layout::new(w, h, seed)`, which never sees the theme. Koi outlines, and the fade of a diving koi, are drawn in the pose pass. Pixel themes: hard-edged koi, dither, dash glints and the palette lock table. Weather: rain, mist, fireflies. A petted koi's tail flutter and head shimmer. Food and bubble sprites (`food_sprite`, `bubble_sprite`, and every fade level with `food_sprites`), HUD stones and icons (`hud::Look`), and the pond as one frame or as placed sprites (`frame.rs`: `place_koi`, `place_food`, `draw_pond`), which the terminal's framed tiers and the web page share. | `koi-sim`, `koi-theme`, wgpu |
+| `koi-term` | `crates/koi-term` | Raw mode, alternate screen, focus and mouse reporting of presses, releases and drags (`report_motion` adds pointer motion for the HUD's hover), restore on exit and on panic, signals, `winsize`, the terminal probe and `Caps`, `read_input`, `parse_input` (keys, clicks, releases, drags, scroll, motion, a lone Esc, Kitty graphics answers), the shm ring and its direct (inline, zlib) mode, removal of shm left by killed runs, and for tmux the passthrough wrapper and Unicode placeholder cells. What differs per platform is in `sys_unix.rs` and `sys_windows.rs` (see "Windows"). | rustix and signal-hook on Unix, windows-sys on Windows, base64, miniz_oxide |
+| `koi-synth` | `crates/koi-synth` | The generated ambient layer (`Ambient`): a low drone and the water's rumble (the bed), drops, crickets at night, a shishi-odoshi every 45 to 90 s, the food chimes, one per food kind on the yo scale, and the petting bloop, at 48 kHz. Its levels come from a listening test. No clock, thread or device. | `koi-sim` |
+| `koi-audio` | `crates/koi-audio` | Music with crossfades and per-track loudness normalization, and `koi-synth`'s ambient layer fed the chime and petting events, on their own threads. | `koi-sim`, `koi-synth`, rodio, symphonia |
+| `koi-web` | `crates/koi-web` | The pond in a web page, compiled to wasm (see "The web page"). | `koi-sim`, `koi-theme`, `koi-render`, `koi-synth`, wasm-bindgen |
 | `koi-pond` | root, `src/` | The `koi` binary: `main.rs` (arguments, backend choice, the frame loop, input handling, theme switching and hot reload, the error toast, the adaptive frame rate, the `d` stats line), `hud.rs` (the HUD: its state machine and timers, hit tests, and its images, ids 60 to 67 at z=-2), `config.rs` (the TOML config), `state.rs` (theme, volume and mute, remembered between runs) and `layers.rs` (the tiers and `choose`, Kitty images and placements, the pixel themes' scaling up and snapping, and the single frame of tmux, sixel and blocks with its sinks: placeholder cells, the sixel encoder and the half-block writer). | all of the above, serde, toml |
 
 The water height field is in `koi-render`, not `koi-sim`, because on the GPU path it lives in GPU buffers and steps in `water.wgsl`. `koi-sim` only produces the splashes that disturb it.
@@ -19,13 +21,17 @@ Shared dependency versions are in `[workspace.dependencies]` in the root `Cargo.
 
 `cargo doc --workspace --no-deps` builds the API docs. Every library crate has `#![warn(missing_docs)]`.
 
+Every crate but `koi-term` has `#![forbid(unsafe_code)]`. `koi-term` reaches the operating system through rustix's safe calls on Linux and macOS, and keeps `unsafe` only where it must: mapping the shm ring's slots (written in place each frame, several times faster than writing the files) and a macOS shm object, which can only be written through a mapping, each with a `SAFETY` note, and the Windows console calls through windows-sys.
+
 ### Public API
 
 - `koi-sim`: `School::new(w, h, count, seed)`, `step`, `drop_food(kind, x, y)`, `drop_food_random(kind)`, `pet(x, y, reach, secs)`, `move_hand`, `let_go`, `FoodKind`, `shadows`, `max_speed_ratio`, and the public `fish`, `food`, `bubbles`, `splashes`, `speed` and `calmness`. `Koi::pose` returns a `Pose`, and `Pose::lerp` blends two steps. `noise2` is the value noise shared by koi wandering and koi patterns.
 - `koi-theme`: `Catalog::load`, `resolve`, `summaries`, `next_scene`, `next_time`; `Theme` with `Summary`, `Palette`, `Light`, `Style`, `Scene`, `warnings` and `files`; `Time`, `ROOT`, `Rgb`.
-- `koi-render`: `Gpu::new`, `Water::new`, `set_theme`, `regrid`, `splash`, `step`, `render`, `Poser::new`, `recolor`, `largest`, `bounds`, `pose`, `food_sprite`, and the `hud` painters (`Look`, `Mark`, `Swatch`).
+- `koi-render`: `Gpu::new`, `Water::new`, `set_theme`, `regrid`, `splash`, `step`, `render`, `Poser::new`, `recolor`, `largest`, `bounds`, `pose`, `food_sprite`, `bubble_sprite`, `food_sprites`, `FADE_LEVELS`, `shown_food`, `place_koi`, `place_food`, `draw_pond`, `blend`, `stretch`, `upscale`, and the `hud` painters (`Look`, `Mark`, `Swatch`).
 - `koi-term`: `Terminal::enter`, `report_motion`, `tmux_wrap`, `placeholders`, `QUIT`, `winsize`, `probe`, `Caps::parse` and `Sixel`, `read_input`, `parse_input` returning `Input` events (`Focus`, `Click`, `Release`, `Drag`, `Scroll`, `Move`, `Escape`, `Key`, `Graphics`, `Other`), `remove_stale_shm`, and `ShmRing::new`, `direct` and `transmit`.
+- `koi-synth`: `Ambient::new(seed)`, `chime(kind, pan)`, `pet(pan)`, `render_frame`, the `bed` level and `night` flag, `RATE`, and `rand`, the xorshift the music shuffle shares.
 - `koi-audio`: `Audio::start(Settings)`, `send(Event)`, the `status` receiver of `Status`, and `shutdown`.
+- `koi-web`: `Pond` for the page's script (see "The web page").
 
 ### Data flow
 
@@ -105,7 +111,7 @@ The Kitty tiers ask for the terminal's answer on 1 of every 60 images (no `q`, s
 
 Windows support is experimental: CI runs clippy and the tests on windows-latest, but nobody has watched the pond run there. Windows Terminal 1.22 and newer has sixel and synchronized updates (mode 2026), so it should get the `sixel` tier; other consoles get `blocks`.
 
-`koi-term` keeps what differs per platform in two private modules with the same functions: `sys_unix.rs` (libc) and `sys_windows.rs` (windows-sys). They are raw mode and its restore (`raw`, `set_mode`), the quit handlers (`catch_quit`), stderr sent away and back (`silence_stderr`, `restore_stderr`), the raw write the panic hook uses (`write_fd`), `winsize`, `read_input`, and shm objects (`write_shm`, `unlink`). Everything else in the crate, the probe and `parse_input` included, is shared.
+`koi-term` keeps what differs per platform in two private modules with the same functions: `sys_unix.rs` (rustix, and signal-hook for the quit signals) and `sys_windows.rs` (windows-sys). They are raw mode and its restore (`raw`, `set_mode`), the quit handlers (`catch_quit`), stderr sent away and back (`silence_stderr`, `restore_stderr`), the raw write the panic hook uses (`write_fd`), `winsize`, `read_input`, and shm objects (`write_shm`, `unlink`). Everything else in the crate, the probe and `parse_input` included, is shared.
 
 On Windows:
 
@@ -124,6 +130,28 @@ On Windows:
 | music | `$XDG_DATA_HOME/koi-pond/music`, or `~/.local/share/koi-pond/music` | `%LOCALAPPDATA%\koi-pond\music` |
 
 `config::dir` picks these, and passes the loudness cache to `koi-audio` in `Settings`. The release job builds `koi.exe` with MSVC and packs `koi-<version>-windows-x86_64.zip` through the Windows branch of `scripts/release.sh`, run under Git Bash.
+
+## The web page
+
+`site/` is a page that runs the pond in a browser: `index.html`, `style.css`, `main.js`, and `synth.js`, the AudioWorklet. `scripts/build-site.sh` builds it into `target/site`: `koi-web` compiled to `wasm32-unknown-unknown` with the `web` profile, its bindings from `wasm-bindgen`, `wasm-opt` when present, the three built-in tracks with an AAC copy of each and a `tracks.json` of titles and loudness gains, and `THIRD-PARTY.md`. `.github/workflows/pages.yml` builds it on every push and pull request, checks it with `scripts/site-smoke.mjs`, and publishes it to GitHub Pages from `main`.
+
+`koi-web`'s `Pond` holds what the binary's frame loop holds, with the terminal's defaults: the catalog and theme, the `School`, `Water` and `Poser` on the CPU (wasm has no threads, so `koi-render` paints inline there), and an `Ambient`. The page's script calls:
+
+- `new Pond(css_w, css_h, density, theme, seed)` and `resize`: the simulation grid is the canvas's CSS size over 4.5, as the terminal's two water pixels to a cell about nine pixels wide, and the canvas is `density` pixels to a CSS pixel. A pixel theme's `pixel_px` counts canvas pixels, as it counts device pixels in the terminal.
+- `tick(now)`: fixed 60 Hz steps up to the page's clock, as the binary steps, with splashes passed to the water; the koi posed, blended between steps, with `place_koi` into a sheet; the water drawn again 30 times a second. It returns whether it drew the water.
+- The layers, as the terminal's Kitty tier sends them: `water_ptr` with `water_width` and `water_height`, which the page scales to the canvas (without smoothing in a pixel theme, by `pixel`); `koi_ptr` with `koi_places`; `food_places` into the food sprites (`food_sprites`, `food_side`, `food_sprite`), which the page keeps in an atlas.
+- `press`, `drag`, `release`, `pet_nearest`, `feed_anywhere`: the binary's mouse and keys. A press pets the koi within `reach` body lengths (0.25 for a mouse, 0.5 for a finger), else feeds.
+- `next_scene`, `next_time`, `set_theme`, `theme_id`, `theme_name`, and `page_style`, the page's colours from the theme as CSS custom properties.
+- `paint_pebble` and `paint_music`: the HUD's stones, from `hud::Look`, at the page's cell size.
+- `set_sound` and `sound(frames)`: the ambient layer, interleaved, which the script keeps 0.2 s ahead of the speakers in `synth.js`. Chimes and the petting sound only sound while it plays. `set_bed` sets the level of the synth's bed, the drone and the water's rumble, which small speakers play worst; `?ambient=` in the address sets it, from 0 to 1. The pond's time of day tells the synth when it is night, for the crickets.
+
+The page draws each frame on a 2D canvas: the water image, the koi from a sheet canvas and the food from the atlas, with `drawImage`. A frame costs about 8 ms on a desktop at 1180 by 740 (4.9 of it posing five koi), so the canvas is at most 1.5 pixels to a CSS pixel and 1.2 million pixels, as the terminal caps its CPU koi; a device slower than 12 ms a frame draws every other frame. The loop stops in a hidden tab and while the pond is scrolled away. The pond is made once its box has a size, since a page opened before its window is sized lays it out at zero width.
+
+Music plays through an `<audio>` element routed through Web Audio, whose gain gives each track its loudness and the volume, which an iPhone ignores on the element itself. The element lists the Ogg and the AAC copy and the browser picks. Nothing sounds until the music stone is tapped, which makes the audio graph within the tap, as browsers require; a hidden tab suspends it.
+
+`scripts/site-smoke.mjs` drives headless Chrome through the DevTools protocol: every scene as a 1280 by 900 desktop and a 390 by 844 phone at 3x with touch, failing on any console error, then a tap on the music stone, food across the pond and a held press, failing unless the music plays. A panic in the wasm reaches the console with its message.
+
+V8 (node 24 and Chrome 149) crashed compiling `water::paint`'s pebble grid when it divided one signed index by the column count, so that grid walks rows and columns instead. The native tests cannot see a miscompile; the smoke test runs the optimised wasm.
 
 ## Config keys
 
@@ -178,8 +206,11 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `calm_limits_hold` | `koi-sim` | Ten minutes of pond time stay inside the limits for turn rate, speed, spacing and feeding. |
 | `pellets_are_gulped_by_a_rushing_koi`, `flakes_bring_several_koi_calmly`, `petals_are_mouthed_once_and_fade`, `seeds_spiral_down_and_koi_follow`, `the_treat_is_circled_and_shared` | `koi-sim` | Each food kind's handful, cap, float and sink, and the koi's reaction to it. |
 | `a_pressed_koi_nuzzles_and_settles` | `koi-sim` | A press on a koi's spine pets it and a press a BL away does not. Pressed mid-body, it comes round to nuzzle the hand, grows pleased and blows bubbles; let go, it lingers, calms within 4 s and cruises again, never faster than `CRUISE_CAP`. |
-| `p_brings_the_nearest_koi` | `koi-sim` | `p` picks the nearest koi that is not eating, which reaches the hand within 10 s, moves on after its nuzzle, and no koi passes `CRUISE_CAP`. |
-| `chimes_stay_in_key_and_in_character` | `koi-audio` | Every chime is on the yo scale, and each kind has its own register and loudness. The petting bell is in key and quiet, with a low bloop, and a second pet soon after is silent. |
+| `p_brings_the_nearest_koi` | `koi-sim` | `p` picks the nearest koi, which reaches the hand within 10 s, moves on after its nuzzle, and no koi passes `CRUISE_CAP`. |
+| `a_koi_after_food_can_be_petted` | `koi-sim` | A press on a koi on its way to food pets it, and it leaves the food. |
+| `a_pellet_draws_one_koi` | `koi-sim` | Over 20 ponds, a handful of pellets brings at most one koi per pellet, and one more. |
+| `draws_every_theme`, `pixel_scenes_at_page_sizes` | `koi-web` | Every theme gives a whole water image and every koi, a switch draws the water again, a press on open water feeds, and pixel scenes work at desktop and phone sizes and in a box laid out at zero width. |
+| `chimes_stay_in_key_and_in_character` | `koi-synth` | Every chime is on the yo scale, and each kind has its own register and loudness. The petting bell is in key and quiet, with a low bloop, and a second pet soon after is silent. |
 | `sprites_fade_or_shrink` | `koi-render` | Food sprites fade (or, for the treat, shrink bite by bite) and keep their size. |
 | `selout_light_edge_stays_toward_the_sun` | `koi-render` | A selout koi keeps its light edge toward the sun heading east and west, on both backends. |
 | `petals_keep_their_places_across_themes` | `koi-render` | Petal k is in the same place in every theme. |

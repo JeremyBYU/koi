@@ -1,0 +1,33 @@
+name = "Pocket Moss at Dusk"
+description = "The same pond at dusk: a low warm sun, long shadows and lavender shade."
+extends = "pocket-moss"
+family = "pocket-moss"
+time = "dusk"
+
+[palette]
+deep = "#404D47"
+mid = "#737A68"
+shallow = "#B2B299"
+highlight = "#D2D1A1"
+shadow = "#32373A"
+stone_light = "#EBDFD2"
+stone_dark = "#305747"
+lily_dark = "#2A262B"
+lily_light = "#A8AC8A"
+lily_flower = "#ECE6C7"
+koi_white = "#F0ECC7"
+koi_red = "#DF6247"
+koi_sumi = "#123831"
+ogon = "#EAC35E"
+outline = "#123831"
+swatches = ["#2d3033", "#46554e", "#697a5b", "#919a6f", "#b5ae96"]
+
+[light]
+sun = [-0.9, -0.35]
+warm = 0.25
+cool = 0.25
+shadow_len = 1.7
+
+[style]
+glint_threshold = 0.6
+cloud_reflections = 0.1

@@ -1,5 +1,6 @@
 [package]
-name = "koi-audio"
+name = "koi-web"
+description = "The koi pond in a web page, for site/"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,9 +8,12 @@ license.workspace = true
 authors.workspace = true
 publish = false
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
+koi-render.workspace = true
 koi-sim.workspace = true
 koi-synth.workspace = true
-rodio.workspace = true
-serde_json.workspace = true
-symphonia.workspace = true
+koi-theme.workspace = true
+wasm-bindgen = "0.2.129"

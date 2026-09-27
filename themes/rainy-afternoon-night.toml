@@ -1,0 +1,36 @@
+name = "Rainy Afternoon at Night"
+description = "The same pond at night in blue moonlight, rain still falling."
+extends = "rainy-afternoon"
+family = "rainy-afternoon"
+time = "night"
+
+[palette]
+deep = "#102A4B"
+mid = "#21445E"
+shallow = "#486677"
+highlight = "#D0D1EA"
+shadow = "#1E254C"
+stone_light = "#8C8B9C"
+stone_dark = "#2F3B4C"
+lily_dark = "#2E4747"
+lily_light = "#5E7568"
+lily_flower = "#9D91D6"
+koi_white = "#E2E4DF"
+koi_red = "#D25C41"
+koi_sumi = "#181B23"
+ogon = "#DEB45F"
+outline = "#C4D4EC"   # rim mode: the moonlit edge on the side facing the moon
+
+[light]
+sun = [-0.4, -0.9]
+warm = 0.1
+cool = 0.3
+ambient = 0.9
+
+[style]
+caustics = 0.12
+glint = 0.7
+glint_threshold = 0.8
+cloud_reflections = 0.0
+leaf_shadows = 0.3
+outline = "rim"
