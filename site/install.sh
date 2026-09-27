@@ -1,6 +1,7 @@
 #!/bin/sh
 # Installs koi on Linux or macOS: the archive for this system from the latest release,
-# checked against the release's SHA256SUMS.
+# checked against the release's SHA256SUMS. In Git Bash, MSYS2 or Cygwin on Windows it runs
+# the PowerShell installer instead.
 #
 #   curl -fsSL https://jeremybyu.github.io/koi/install.sh | sh
 #
@@ -20,7 +21,14 @@ case "$(uname -s)" in
     esac
     ;;
   Darwin) target=macos ;;
-  *) echo "This script is for Linux and macOS. On Windows, see $repo#install." >&2; exit 1 ;;
+  MINGW* | MSYS* | CYGWIN*)
+    # Windows, from a Unix-like shell: the PowerShell installer knows where Windows programs
+    # go and how to add them to the PATH. PowerShell 7 when it's installed, else the Windows
+    # PowerShell that every Windows has.
+    ps=$(command -v pwsh || echo powershell.exe)
+    exec "$ps" -NoProfile -Command "irm https://jeremybyu.github.io/koi/install.ps1 | iex"
+    ;;
+  *) echo "koi has no build for $(uname -s). See $repo#install." >&2; exit 1 ;;
 esac
 
 if [ -n "${KOI_VERSION:-}" ]; then
