@@ -109,7 +109,12 @@ main,
 }
 
 /* The pond. Its rim is a band of the scene's stone, like the edge of the water. */
+/* Taps and long presses on the pond are for the koi: no tap highlight and no text selection. */
 .pond {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   position: relative;
   height: clamp(340px, 74svh, 860px);
   border-radius: clamp(18px, 3vw, 34px);
@@ -124,9 +129,6 @@ main,
   height: 100%;
   touch-action: none;
   cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
 }
 
 .pond.pixel > canvas {
