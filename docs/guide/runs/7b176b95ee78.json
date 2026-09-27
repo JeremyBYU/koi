@@ -2,6 +2,6 @@
  "command": "readelf -d target/release/koi | grep NEEDED",
  "exit": 0,
  "output": " 0x0000000000000001 (NEEDED)             Shared library: [libasound.so.2]\n 0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]\n 0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]\n 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]\n 0x0000000000000001 (NEEDED)             Shared library: [ld-linux-x86-64.so.2]\n",
- "seconds": 0.0018885669996961951,
+ "seconds": 0.0020725829963339493,
  "date": "27 Sep 2026"
 }

@@ -24,17 +24,16 @@ Press `d` to see a live stats line. The numbers in `docs/PERFORMANCE.md` come fr
 
 Press `d` (the `input.stats` key). The line is built here:
 
-@excerpt src/main.rs:724-732
+@excerpt src/main.rs:726-729 mark=729
 
 Reading it left to right:
 
 - **theme, protocol, terminal, backend**: what koi is drawing, how it reaches the terminal, and whether the GPU or CPU renders.
-- **fps, sent**: frames per second koi prepared, and how many of those it actually wrote. A frame where nothing changed isn't written (`src/main.rs:794`), so `sent` can be lower.
+- **fps, sent**: frames per second koi prepared, and how many of those it actually wrote. A frame where nothing changed isn't written (`src/main.rs:791`), so `sent` can be lower.
 - **target (reason)**: the rate koi is aiming for and why: `focused`, `food`, `input`, `calm`, or `slow terminal` when the terminal couldn't keep up.
 - **build p50, p99**: the median and slowest milliseconds per frame, over the last 120 frames.
 - **B/frame**: bytes written to the terminal per sent frame.
 - **shm MB/s**: image bytes going through the shared-memory ring each second.
-- **poses/s**: koi images drawn per second.
 - **water**: the size of the water image in pixels.
 
 ### How the rate adapts
@@ -46,7 +45,7 @@ Each frame, the loop checks for reasons to run fast: focus, food, recent input, 
 It ran each prototype in a 160x45 Ghostty window and recorded CPU for Ghostty and for the game separately. It took 10 s averages, three runs each, and reported the median (`docs/PERFORMANCE.md:7`). Its conclusion is the design koi uses, with an estimate of 27 to 30% of a core in total at 60 fps. It says plainly that the finished game was not measured the same way (`docs/PERFORMANCE.md:92`).
 
 ::: check You add a feature. With the window focused, the stats line shows build p99 at 25 ms and `target 60 (focused)`. Is koi slow, or the terminal?
-Not the terminal alone. `build` is timed from before the simulation steps (`src/main.rs:686`) to after the frame is written and flushed (`src/main.rs:797-798`), so it includes the terminal's write. If the write alone took longer than the frame interval, the ceiling would halve and the reason would read `slow terminal` (`src/main.rs:799-800`). It still says `focused`, so every write fit in the 16.7 ms interval. At least 8 ms of the 25 went to koi's own work: stepping, rendering or encoding.
+Not the terminal alone. `build` is timed from before the simulation steps (`src/main.rs:690`) to after the frame is written and flushed (`src/main.rs:794-795`), so it includes the terminal's write. If the write alone took longer than the frame interval, the ceiling would halve and the reason would read `slow terminal` (`src/main.rs:796-797`). It still says `focused`, so every write fit in the 16.7 ms interval. At least 8 ms of the 25 went to koi's own work: stepping, rendering or encoding.
 :::
 
 ### Measuring without touching your screen
@@ -57,15 +56,15 @@ Use a release build, since a debug build isn't optimized. `scripts/vshot.sh` run
 ::: high
 ### What the stats line leaves out
 
-- **The water isn't in shm MB/s.** The number reads the main ring (`src/main.rs:828`), which carries the koi, the food and the HUD. On the usual Kitty path the water goes through a second ring (`src/layers.rs:492-501`), which isn't counted.
-- **Two kinds of bytes.** For inline Kitty images, shm MB/s counts pixels before compression (`crates/koi-term/src/lib.rs:685`), and B/frame counts the compressed base64 actually written.
+- **The water isn't in shm MB/s.** The number reads the main ring (`src/main.rs:825`), which carries the koi, the food and the HUD. On the usual Kitty path the water goes through a second ring (`src/layers.rs:486-498`), which isn't counted.
+- **Two kinds of bytes.** For inline Kitty images, shm MB/s counts pixels before compression (`crates/koi-term/src/lib.rs:693`), and B/frame counts the compressed base64 actually written.
 - **p99 of 120 samples** is about the slowest frame of the last two seconds at 60 fps, not a long-run tail.
 
 ### Release profiles
 
 `cargo build --release` uses Cargo's defaults. What ships uses `dist`, which adds whole-program optimization and strips symbols. The web build uses the same settings and also aborts on panic:
 
-@excerpt Cargo.toml:64-78
+@excerpt Cargo.toml:63-77
 
 This shows the local release binary next to the three songs compiled into it. Look at how much of the size is music:
 
@@ -75,7 +74,7 @@ The songs are about 6.6 of the 17 MB. The unstripped local build is larger than 
 
 ### Memory
 
-Nothing measures memory. The largest use is the shared-memory rings. `check` limits the settings that grow them: at most 50 koi, `water_px` up to 16, `fish_px` up to 64 (`src/config.rs:361-366`).
+Nothing measures memory. The largest use is the shared-memory rings. `check` limits the settings that grow them: at most 50 koi, `water_px` up to 16, `fish_px` up to 64 (`src/config.rs:358-363`).
 
 ::: inferred
 The ring that carries the water, or in tmux the whole frame, has 6 slots (`src/layers.rs:15`). On the usual path they're small, since the water is sent at 2 pixels per cell. In tmux and in pixel themes, each slot holds the whole window in RGBA: at 1600x945 pixels that's about 6 MB a slot, so about 36 MB of `/dev/shm`.

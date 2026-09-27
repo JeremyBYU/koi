@@ -13,13 +13,13 @@ Most of koi's types keep their workings private and show callers only a few meth
 
 @excerpt crates/koi-render/src/water.rs:59-65 mark=59,62-65
 
-Callers build it with `Water::new` and then call `splash`, `step` and `render`. Each of those matches on the backend inside the file (`crates/koi-render/src/water.rs:448`, `crates/koi-render/src/water.rs:556`).
+Callers build it with `Water::new` and then call `splash`, `step` and `render`. Each of those matches on the backend inside the file (`crates/koi-render/src/water.rs:449`, `crates/koi-render/src/water.rs:557`).
 
 `Koi` hides more. Its position, heading, hunger and mood are private. A renderer can read three fields it needs to paint the fish once: length, variety and pattern seed (`crates/koi-sim/src/lib.rs:285-290`). For each frame it asks for a `Pose`, a copy of where the koi is now (`crates/koi-sim/src/lib.rs:317`). The steering code can be rewritten without another crate noticing.
 
 `Audio` hides its thread. The sender and the thread handle are private, and the one public field is the channel that status messages come back on (`crates/koi-audio/src/lib.rs:86-91`). Callers can only `send` an `Event`.
 
-`Layers` hides how a finished frame reaches the terminal: sixel, half blocks, or a Kitty image inside tmux. That's a private `Sink` enum (`src/layers.rs:152`).
+`Layers` hides how a finished frame reaches the terminal: sixel, half blocks, or a Kitty image inside tmux. That's a private `Sink` enum (`src/layers.rs:151`).
 
 ### What's open
 
@@ -50,7 +50,7 @@ The new koi's index has no body, so `self.bodies[k]` in `pose` would index past 
 ::: high
 ### Open fields that carry no rules
 
-Some types are plain data, with every field public: `Caps`, `Grid`, `Pose`, `Splash`, the audio `Settings`. There's nothing to protect in them, and callers use that. When a tier fails, the loop switches off the capability that failed by writing to `caps` directly (`src/main.rs:662-667`).
+Some types are plain data, with every field public: `Caps`, `Grid`, `Pose`, `Splash`, the audio `Settings`. There's nothing to protect in them, and callers use that. When a tier fails, the loop switches off the capability that failed by writing to `caps` directly (`src/main.rs:666-671`).
 
 `School` mixes the two kinds. Its random state and whose turn it is at the treat are private, and only its methods change them (`crates/koi-sim/src/lib.rs:434-440`). Its lists are open. The defaults for `speed` and `calmness` are 1.0 (`crates/koi-sim/src/lib.rs:555-556`). The web page never sets them, so the browser pond always swims at those.
 
@@ -64,7 +64,7 @@ Whether a tier draws everything into one frame is a method on `Tier`:
 
 @excerpt src/layers.rs:64-68
 
-`Layers::new` asks it to decide whether it needs a `Sink` (`src/layers.rs:233`), and `build` in main.rs asks it to size the koi sprites (`src/main.rs:285`). Both depend on one answer, so a new tier changes it in one place.
+`Layers::new` asks it to decide whether it needs a `Sink` (`src/layers.rs:232`), and `build` in main.rs asks it to size the koi sprites (`src/main.rs:285`). Both depend on one answer, so a new tier changes it in one place.
 
 `Tier` itself is public, and main.rs matches on it in several places. The next card follows what that means for adding one.
 :::

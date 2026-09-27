@@ -26,17 +26,17 @@ No. An `Option<&Gpu>` isn't a `&Gpu`, so the compiler rejects using it as one. T
 
 ### Ownership does the cleanup
 
-`run` holds a `Terminal` it never uses (`src/main.rs:375`). Its `Drop` restores the terminal (`crates/koi-term/src/lib.rs:86-89`), on return, on error and on a panic. `ShmRing` does the same for its shared-memory files (`crates/koi-term/src/lib.rs:724`).
+`run` holds a `Terminal` it never uses (`src/main.rs:375`). Its `Drop` restores the terminal (`crates/koi-term/src/lib.rs:86-89`), on return, on error and on a panic. `ShmRing` does the same for its shared-memory files (`crates/koi-term/src/lib.rs:732`).
 
 The audio thread stops through ownership too. `shutdown` takes `self`, drops the sending end of the channel, and waits:
 
 @excerpt crates/koi-audio/src/lib.rs:109-112
 
-The thread sees the channel close and leaves its loop (`crates/koi-audio/src/lib.rs:239`). There is no stop message.
+The thread sees the channel close and leaves its loop (`crates/koi-audio/src/lib.rs:238`). There is no stop message.
 
 ### `Result` and `?`
 
-Errors are plain: `io::Result`, or `Result<_, String>` with a message written for the user. There is no error crate. `?` passes them up, and `map_err` adds the file name first, as in `config::load` (`src/config.rs:314-315`). `main` prints whatever reaches it and exits with a failure code (`src/main.rs:194-199`).
+Errors are plain: `io::Result`, or `Result<_, String>` with a message written for the user. There is no error crate. `?` passes them up, and `map_err` adds the file name first, as in `config::load` (`src/config.rs:311-312`). `main` prints whatever reaches it and exits with a failure code (`src/main.rs:194-199`).
 :::
 
 ::: high
@@ -44,7 +44,7 @@ Errors are plain: `io::Result`, or `Result<_, String>` with a message written fo
 
 There are two kinds of threads. The audio thread is long-lived and talks only through `mpsc` channels (`crates/koi-audio/src/lib.rs:97-99`). The loop reads its replies with `try_recv`, so it never waits on sound.
 
-Painting uses scoped threads. `std::thread::scope` lets each thread borrow its own `chunks_mut` band of the output, with no `Arc` or lock, and joins them all before returning (`crates/koi-render/src/water.rs:1091`). The web build has no threads, so every spawn goes through one small function that runs the work inline on wasm:
+Painting uses scoped threads. `std::thread::scope` lets each thread borrow its own `chunks_mut` band of the output, with no `Arc` or lock, and joins them all before returning (`crates/koi-render/src/water.rs:1092`). The web build has no threads, so every spawn goes through one small function that runs the work inline on wasm:
 
 @excerpt crates/koi-render/src/lib.rs:21-28 mark=23-24
 
@@ -52,7 +52,7 @@ Painting uses scoped threads. `std::thread::scope` lets each thread borrow its o
 
 ### `unsafe` is fenced in one crate
 
-Every crate but `koi-term` starts with `#![forbid(unsafe_code)]`, for example `crates/koi-sim/src/lib.rs:6`. In `koi-term`, the Unix `unsafe` blocks map shared memory, write into it and unmap it, and each has a `SAFETY` comment saying why it holds (`crates/koi-term/src/lib.rs:729-730`). The Windows console calls in `sys_windows.rs` are `unsafe` too.
+Every crate but `koi-term` starts with `#![forbid(unsafe_code)]`, for example `crates/koi-sim/src/lib.rs:6`. In `koi-term`, the Unix `unsafe` blocks map shared memory, write into it and unmap it, and each has a `SAFETY` comment saying why it holds (`crates/koi-term/src/lib.rs:737-738`). The Windows console calls in `sys_windows.rs` are `unsafe` too.
 
 ### Data compiled in
 
@@ -64,13 +64,13 @@ The one edition 2024 feature in daily use is the let chain, `if let ... && let .
 
 @excerpt src/main.rs:134-135
 
-Let chains are only stable in edition 2024, so `edition = "2024"` and `rust-version = "1.90"` (`Cargo.toml:8-9`) are not just defaults. `let ... else` is common too, for skipping a bad config key (`src/config.rs:323`).
+Let chains are only stable in edition 2024, so `edition = "2024"` and `rust-version = "1.90"` (`Cargo.toml:8-9`) are not just defaults. `let ... else` is common too, for skipping a bad config key (`src/config.rs:320`).
 
 ### A panic hook that checks the thread
 
 `Terminal::enter` installs a panic hook that restores the terminal only if the panic is on the thread that entered (`crates/koi-term/src/lib.rs:65-70`). A panic on the audio thread leaves the pond running, so the terminal must stay as it is.
 
 ::: inferred
-Theme switches that need a new grid move the whole `Scene` into `build(.., Some(scene), ..)` (`src/main.rs:613`). `build` keeps the water, school and last poses (`src/main.rs:270-274`). The old poser and layers are dropped at the end of that match arm, so the old ring's files go before the new ring is made.
+Theme switches that need a new grid move the whole `Scene` into `build(.., Some(scene), ..)` (`src/main.rs:617`). `build` keeps the water, school and last poses (`src/main.rs:270-274`). The old poser and layers are dropped at the end of that match arm, so the old ring's files go before the new ring is made.
 :::
 :::

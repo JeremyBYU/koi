@@ -63,5 +63,5 @@ The water's height field lives in `koi-render`, not in `koi-sim`, even though it
 
 ### Versions in one place
 
-Shared versions are set once in the root manifest (`Cargo.toml:13-32`), and a crate opts in with `workspace = true`, so the crates that share wgpu or serde get the same version. A dependency only one crate uses is listed there directly, like `wasm-bindgen` in `crates/koi-web/Cargo.toml:19`.
+Shared versions are set once in the root manifest (`Cargo.toml:13-31`), and a crate opts in with `workspace = true`, so the crates that share wgpu or serde get the same version. A dependency only one crate uses is listed there directly, like `wasm-bindgen` in `crates/koi-web/Cargo.toml:19`.
 :::

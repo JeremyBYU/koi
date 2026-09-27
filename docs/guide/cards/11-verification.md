@@ -2,7 +2,7 @@
 
 > How do we know koi works, and what would catch a mistake?
 
-koi has 61 tests, spread over every crate, and `just test` runs them all. CI runs them on Linux, macOS and Windows for every push.
+koi has 65 tests, spread over every crate, and `just test` runs them all. CI runs them on Linux, macOS and Windows for every push.
 
 Most tests check behaviour you could describe out loud, and their names say it: `a_pellet_draws_one_koi`, `calm_limits_hold`. They run the simulation over many random seeds rather than trusting one lucky run.
 
@@ -42,7 +42,10 @@ On Linux CI, and locally if lavapipe is installed: the parity test fails on the 
 | linux | formatting, lints, all tests with the parity test's GPU half, and the docs build |
 | macos, windows | lints and all tests, without the GPU half |
 | macos-screenshot | runs koi in Ghostty on a Mac and saves a screenshot |
+| msrv | builds on Rust 1.90, the oldest version koi supports |
 | pages | builds the web page and runs it in headless Chrome, as a desktop and as a phone |
+
+A release runs the same CI jobs on the tagged commit and publishes nothing unless they pass (see Dev loop, build and release).
 :::
 
 ::: high
@@ -56,7 +59,7 @@ Some things can't be asserted:
 
 ### Random input
 
-`parse_input` reads raw bytes from the terminal, so a test throws 5000 random byte strings at it, half of them made of the bytes escape sequences use, and checks it never panics or claims more bytes than it was given (`crates/koi-term/src/lib.rs:1039`).
+`parse_input` reads raw bytes from the terminal, so a test throws 5000 random byte strings at it, half of them made of the bytes escape sequences use, and checks it never panics or claims more bytes than it was given (`crates/koi-term/src/lib.rs:1071`). Another feeds it an escape sequence that never ends and checks it's dropped once it passes 512 bytes (`crates/koi-term/src/lib.rs:1060`).
 
 ### Gaps
 

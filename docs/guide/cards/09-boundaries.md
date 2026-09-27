@@ -18,9 +18,9 @@ In the browser, the page reads two URL parameters, keeps three settings in `loca
 | Terminal output | out | escape sequences, Kitty graphics, sixel, half blocks | `crates/koi-term/src/lib.rs:77` |
 | Terminal input | in | raw bytes, up to 4 KiB a read | `crates/koi-term/src/sys_unix.rs:75` |
 | `/dev/shm/koi-pond-*` | out, read by the terminal | raw RGBA pixels | `crates/koi-term/src/lib.rs:645` |
-| config.toml, themes/*.toml | in | TOML | `src/config.rs:306` |
+| config.toml, themes/*.toml | in | TOML | `src/config.rs:303` |
 | state.toml | in and out | TOML | `src/state.rs:28-43` |
-| `~/.cache/koi-pond/loudness.json` | in and out | JSON: path to file size and gain | `crates/koi-audio/src/lib.rs:294` |
+| `~/.cache/koi-pond/loudness.json` | in and out | JSON: path to file size and gain | `crates/koi-audio/src/lib.rs:293` |
 | Music folder | in | mp3 and ogg, plus an optional tracks.json | `crates/koi-audio/src/lib.rs:138` |
 | Audio device | out | the default output, through rodio | `crates/koi-audio/src/lib.rs:161` |
 | tmux | out and in | `tmux display-message` | `src/main.rs:150` |
@@ -36,9 +36,9 @@ Then `probe` asks what the terminal can draw and reads the answers (`crates/koi-
 
 A Kitty image through shared memory goes like this. The pixels are copied into a mapped slot file, the slot gets a fresh hard-linked name, and the terminal is sent only that name, in base64:
 
-@excerpt crates/koi-term/src/lib.rs:700-712 mark=706-707,712
+@excerpt crates/koi-term/src/lib.rs:708-720 mark=714-715,720
 
-The terminal reads the file and unlinks the name. Over SSH the terminal can't see this machine's `/dev/shm`, so koi sends the pixels inline instead, zlib-compressed (`crates/koi-term/src/lib.rs:687-698`).
+The terminal reads the file and unlinks the name. Over SSH the terminal can't see this machine's `/dev/shm`, so koi sends the pixels inline instead, zlib-compressed (`crates/koi-term/src/lib.rs:695-706`).
 
 ### Input from the terminal
 
@@ -57,7 +57,7 @@ The slot files and any names the terminal hadn't unlinked yet, since `Drop for S
 :::
 
 ::: check Your config.toml sets `pond.koi = 500`. What happens?
-A warning, and the default number of koi. `check` caps koi at 50 because each one costs shared memory, which is RAM (`src/config.rs:361-363`). The value is tried on its own, so the rest of the file still applies.
+A warning, and the default number of koi. `check` caps koi at 50 because each one costs shared memory, which is RAM (`src/config.rs:358-360`). The value is tried on its own, so the rest of the file still applies.
 :::
 
 ### In the browser
@@ -68,14 +68,15 @@ The page reads `?scene=` and `?ambient=` from the URL (`site/main.js:10`, `site/
 ::: high
 ### How each input is kept in bounds
 
-- **Terminal bytes.** A read is at most 4 KiB (`crates/koi-term/src/sys_unix.rs:85`). A Kitty or XTVERSION answer only counts if it is printable text, and koi stops waiting for its end after 512 bytes (`crates/koi-term/src/lib.rs:841`).
-- **TOML.** Each key is checked on its own, and `check` also refuses values that would panic later, like a negative number of seconds (`src/config.rs:355-359`).
-- **JSON.** A tracks.json or loudness.json that doesn't parse is treated as empty (`crates/koi-audio/src/lib.rs:139`, `crates/koi-audio/src/lib.rs:296`).
-- **Music files.** symphonia decodes them on the audio thread. A decode error becomes an error toast (`crates/koi-audio/src/lib.rs:273-276`). A panic there leaves the pond running, because the panic hook only restores the terminal for the main thread (`crates/koi-term/src/lib.rs:66-70`).
+- **Terminal bytes.** A read is at most 4 KiB (`crates/koi-term/src/sys_unix.rs:85`). koi stops waiting for the end of any escape sequence after 512 bytes, so a stream that never finishes one can't grow the input buffer (`crates/koi-term/src/lib.rs:822`, `crates/koi-term/src/lib.rs:841`). A Kitty or XTVERSION answer also only counts if it is printable text (`crates/koi-term/src/lib.rs:863`).
+- **Names shown on screen.** Theme names, track titles and the top line's messages have control characters removed before they reach the terminal, where they would act as commands (`crates/koi-theme/src/lib.rs:729-730`, `src/hud.rs:342`, `src/main.rs:750`).
+- **TOML.** Each key is checked on its own, and `check` also refuses values that would panic later, like a negative number of seconds (`src/config.rs:352-356`).
+- **JSON.** A tracks.json or loudness.json that doesn't parse is treated as empty (`crates/koi-audio/src/lib.rs:139`, `crates/koi-audio/src/lib.rs:295`).
+- **Music files.** symphonia decodes them on the audio thread. A decode error becomes an error toast (`crates/koi-audio/src/lib.rs:272-275`). A panic there leaves the pond running, because the panic hook only restores the terminal for the main thread (`crates/koi-term/src/lib.rs:66-70`).
 
 ### Creating shm files
 
-The slot files are opened with `create` and `truncate`, not exclusively. Only the names are checked: `hard_link` fails if a name already exists (`crates/koi-term/src/lib.rs:707`). The probe's test object, and every image on macOS, is created with `O_CREAT | O_EXCL` and mode `0o600`:
+Each slot file's space is reserved with `fallocate` when the ring is made, so a full `/dev/shm` is an error at start rather than a crash on a later write (`crates/koi-term/src/lib.rs:650`). The slot files are opened with `create` and `truncate`, not exclusively. Only the names are checked: `hard_link` fails if a name already exists (`crates/koi-term/src/lib.rs:715`). The probe's test object, and every image on macOS, is created with `O_CREAT | O_EXCL` and mode `0o600`:
 
 @excerpt crates/koi-term/src/sys_unix.rs:93
 
@@ -95,5 +96,5 @@ The one download in the repo is `scripts/fetch-music.sh`, which fetches the musi
 
 ### Where stderr goes
 
-While the pond is up, stderr points at `/dev/null`, because ALSA prints to it and it would land on the pond (`crates/koi-term/src/lib.rs:74-75`). koi collects its own warnings and prints them once the terminal is restored. The cost is that a library's messages during the run are lost.
+While the pond is up, stderr points at `/dev/null`, because ALSA prints to it and it would land on the pond (`crates/koi-term/src/lib.rs:74-75`). koi keeps its startup warnings and prints them once the terminal is restored. Errors during the run, such as a track that won't play, show on the top line for six seconds and aren't printed on exit. The cost of the redirect is that a library's messages during the run are lost.
 :::

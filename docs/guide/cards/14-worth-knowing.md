@@ -9,7 +9,7 @@ The web page repeats some of the terminal's defaults as its own constants. The p
 ::: medium
 ### The web page keeps its own copy of some defaults
 
-The number of koi, the water's grid and its frame rate are constants in `koi-web` (`crates/koi-web/src/lib.rs:19-22`), and the default volume is a number in `site/main.js` (`site/main.js:336`). They match the terminal's defaults today. The terminal's defaults live in the binary, where the web build can't read them, and no test compares the two. A change to one side needs the same change on the other.
+The number of koi, the water's grid and its frame rate are constants in `koi-web` (`crates/koi-web/src/lib.rs:19-22`), and the default volume is a number in `site/main.js` (`site/main.js:336`). They match the terminal's defaults today. The terminal's defaults live in the binary, where the web build can't read them, and no test compares the two. To keep them matching, change both.
 
 ### The performance numbers describe prototypes
 
@@ -17,5 +17,5 @@ The number of koi, the water's grid and its frame rate are constants in `koi-web
 
 ### Windows has never been watched
 
-CI builds koi on Windows and runs its tests there (`.github/workflows/ci.yml:38-39`), and the architecture doc marks the port as experimental (`docs/ARCHITECTURE.md:112`). Nobody has run it in a Windows terminal and looked at the pond.
+CI builds koi on Windows and runs its tests there (`.github/workflows/ci.yml:40-41`), and the architecture doc marks the port as experimental (`docs/ARCHITECTURE.md:112`). Nobody has run it in a Windows terminal and looked at the pond.
 :::

@@ -17,7 +17,7 @@ Most recipes are a line or two that call cargo or a script in `scripts/`. `just 
 
 ### `just check` and CI
 
-`check` is declared as `check: lint test` (`justfile:29-30`). It runs `lint` (formatting, and clippy with warnings as errors), then `test`, then builds the docs with warnings as errors. That's the same list as the Linux job in `.github/workflows/ci.yml:18-25`. `test` points the GPU parity test at lavapipe when it's installed (`justfile:5`), which is what CI does too. The verification card covers the tests themselves.
+`check` is declared as `check: lint test` (`justfile:29-30`). It runs `lint` (formatting, and clippy with warnings as errors), then `test`, then builds the docs with warnings as errors. That's the same list as the Linux job in `.github/workflows/ci.yml:20-27`. `test` points the GPU parity test at lavapipe when it's installed (`justfile:5`), which is what CI does too. The verification card covers the tests themselves.
 
 ### The web page
 
@@ -42,19 +42,20 @@ flowchart LR
   ver --> linux["linux job<br/>x86_64 and aarch64 .tar.gz"]
   ver --> mac["macos job<br/>universal .tar.gz"]
   ver --> win["windows job<br/>.zip"]
-  linux & mac & win --> pub["publish job<br/>SHA256SUMS, GitHub release"]
+  ver --> ci["ci job<br/>the same checks as CI"]
+  linux & mac & win & ci --> pub["publish job<br/>SHA256SUMS, GitHub release"]
 ```
 
 `.github/workflows/release.yml` runs on any tag starting with `v` (`.github/workflows/release.yml:5`). Each OS job runs the same `scripts/release.sh`, which picks its branch by `uname`. Every archive holds the binary, the README, both license files and a `THIRD-PARTY.md`.
 
-When all three finish, the publish job gathers the archives, writes the checksums and creates the release:
+Beside them, the `ci` job runs every CI check on the tagged commit (`.github/workflows/release.yml:75-78`). When the three builds and the checks have passed, the publish job gathers the archives, writes the checksums and creates the release:
 
-@excerpt .github/workflows/release.yml:84-85
+@excerpt .github/workflows/release.yml:89-91
 
 The web page doesn't wait for a tag. `.github/workflows/pages.yml` builds and smoke-tests it on every push to `main` and every pull request, but only deploys to GitHub Pages from `main` (`.github/workflows/pages.yml:49`).
 
 ::: check You push tag `v0.5.0`. What gets built, and where does each piece end up?
-First the version job checks that `Cargo.toml` says 0.5.0, and stops everything if it doesn't. Then four archives: `koi-<version>-x86_64-linux.tar.gz` and `-aarch64-linux.tar.gz` from the Linux job, `-macos.tar.gz` from the macOS job, and `-windows-x86_64.zip` from the Windows job. The publish job adds `SHA256SUMS` and uploads all five files to a GitHub release named `koi v0.5.0` (`.github/workflows/release.yml:85`). The web page isn't touched by the tag. It was already deployed by the push to `main`.
+First the version job checks that `Cargo.toml` says 0.5.0, and stops everything if it doesn't. Then four archives: `koi-<version>-x86_64-linux.tar.gz` and `-aarch64-linux.tar.gz` from the Linux job, `-macos.tar.gz` from the macOS job, and `-windows-x86_64.zip` from the Windows job. The publish job adds `SHA256SUMS` and uploads all five files to a GitHub release named `koi v0.5.0` (`.github/workflows/release.yml:91`). If any CI check fails on that commit, nothing is published. The web page isn't touched by the tag. It was already deployed by the push to `main`.
 :::
 :::
 
@@ -91,7 +92,7 @@ The macOS job builds twice, once for Apple silicon and once for Intel, then join
 
 ### The `dist` profile
 
-@excerpt Cargo.toml:65-69
+@excerpt Cargo.toml:64-68
 
 It starts from the normal release settings and adds three. `lto = "fat"` optimizes across all crates at once. `codegen-units = 1` compiles each crate as one unit, so the optimizer sees more. Together they make builds slower and the binary smaller and a little faster. `strip` drops debug symbols. The web page's `web` profile below it is the same, plus `panic = "abort"`, which leaves the unwinding code out of the wasm.
 
@@ -105,13 +106,13 @@ The release workflow calls `scripts/release.sh` without `--music`, and `music-v1
 
 ### What `just check` leaves to CI
 
-CI's `msrv` job also builds on Rust 1.90, the oldest version koi supports (`.github/workflows/ci.yml:94`). `just check` builds on whatever Rust you have, and says so in its description (`justfile:28`).
+CI's `msrv` job also builds on Rust 1.90, the oldest version koi supports (`.github/workflows/ci.yml:96`). `just check` builds on whatever Rust you have, and says so in its description (`justfile:28`).
 
 ### The tag must match the version
 
-The archive names come from the version in `Cargo.toml` (`scripts/release.sh:30`), and so do the web page's download links (`scripts/build-site.sh:32-33`). So the release starts with a small job that fails unless the tag is `v` plus that version, before anything is built:
+The archive names come from the version in `Cargo.toml` (`scripts/release.sh:30`). So the release starts with a small job that fails unless the tag is `v` plus that version, before anything is built:
 
 @excerpt .github/workflows/release.yml:10-19
 
-The release workflow runs no tests of its own. It relies on CI having passed on the tagged commit.
+The web page doesn't name a version. It links to the latest release and says which file fits which system, so it's never ahead of what's published.
 :::

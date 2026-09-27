@@ -39,20 +39,20 @@ The loop starts at `src/main.rs:417`.
 2. **Handle input.** The HUD gets first pick of keys and clicks. The rest go to the pond: feed, pet, change scene.
 3. **Step the simulation.** This is a fixed-timestep loop. The loop works out how far the simulation is behind the frame's time, and `advance` steps it in exactly 1/60 s steps:
 
-@excerpt src/main.rs:685-689 mark=688-689
+@excerpt src/main.rs:689-693 mark=692-693
 
 @excerpt crates/koi-render/src/frame.rs:14-30 mark=17,29
 
    The frame's time is when it was *due*, not when the loop woke, so frames stay evenly spaced. The cap of 60 steps means a long stall, like a suspended laptop, skips ahead instead of replaying every missed step.
 
-4. **Draw and write.** Each koi is drawn between its last two steps, so motion stays smooth between ticks (`src/main.rs:753`). The whole frame goes into one buffer, wrapped in `\x1b[?2026h` and `\x1b[?2026l`. That pair asks the terminal to hold the screen until the frame is complete, so you never see half of one.
+4. **Draw and write.** Each koi is drawn between its last two steps, so motion stays smooth between ticks (`src/main.rs:758`). The whole frame goes into one buffer, wrapped in `\x1b[?2026h` and `\x1b[?2026l`. That pair asks the terminal to hold the screen until the frame is complete, so you never see half of one.
 
 ### Threads
 
-The main loop owns all the pond's state. The audio thread owns everything about sound. They share nothing and talk through two channels: `Event` goes to the audio thread (next track, volume, night), and `Status` comes back (now playing, errors). The loop reads `Status` with `try_recv` once per frame (`src/main.rs:694`), so a slow audio thread can't delay a frame. That's why there are no locks around the pond.
+The main loop owns all the pond's state. The audio thread owns everything about sound. They share nothing and talk through two channels: `Event` goes to the audio thread (next track, volume, night), and `Status` comes back (now playing, errors). The loop reads `Status` with `try_recv` once per frame (`src/main.rs:698`), so a slow audio thread can't delay a frame. That's why there are no locks around the pond.
 
 ::: check You press `n` for the next track. Which thread decodes the song, and how does its name reach the screen?
-The loop sends `Event::NextTrack` down the channel. The audio thread decodes and starts the song, then sends back `Status::NowPlaying { title }`. On a later frame the loop picks that up and calls `hud.track` (`src/main.rs:696`).
+The loop sends `Event::NextTrack` down the channel. The audio thread decodes and starts the song, then sends back `Status::NowPlaying { title }`. On a later frame the loop picks that up and calls `hud.track` (`src/main.rs:700`).
 :::
 :::
 
@@ -61,9 +61,9 @@ The loop sends `Event::NextTrack` down the channel. The audio thread decodes and
 
 The loop times each write. If writing a frame takes longer than the frame interval, the frame rate ceiling halves, down to 8. Every 2 s it climbs back by a quarter:
 
-@excerpt src/main.rs:799-812
+@excerpt src/main.rs:796-809
 
-If it stays at 8 for 5 s on one of the heavier drawing methods, koi switches to a simpler one. That switch reuses the window-resize path (`src/main.rs:648`).
+If it stays at 8 for 5 s on one of the heavier drawing methods, koi switches to a simpler one. That switch reuses the window-resize path (`src/main.rs:652`).
 
 ### One stepping function, two clocks
 
@@ -71,7 +71,7 @@ The browser version has no loop of its own. The page calls `requestAnimationFram
 
 @excerpt crates/koi-web/src/lib.rs:193-196 mark=195
 
-Only the clocks differ. The terminal sleeps until a deadline it computes with `Instant`. The browser wakes koi on its own schedule and hands over a timestamp in milliseconds. Each front end turns its own clock into "seconds behind", and the stepping itself lives once, in `koi-render`, beside the drawing code both front ends share. A test pins down its contract: whole steps, the remainder left for next time, and the jump after a long pause (`crates/koi-render/src/frame.rs:195`).
+Only the clocks differ. The terminal sleeps until a deadline it computes with `Instant`. The browser wakes koi on its own schedule and hands over a timestamp in milliseconds. Each front end turns its own clock into "seconds behind", and the stepping itself lives once, in `koi-render`, beside the drawing code both front ends share. A test pins down its contract: whole steps, the remainder left for next time, and the jump after a long pause (`crates/koi-render/src/frame.rs:193`).
 
 Both front ends can drive the same simulation because it depends on nothing. Its manifest has no dependencies at all, so it can't reach a terminal, a GPU or a browser:
 

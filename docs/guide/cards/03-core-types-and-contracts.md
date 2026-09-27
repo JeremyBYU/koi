@@ -23,7 +23,7 @@ The same seed lays out the same pond. Units are plain numbers, so the types don'
 | `Poser` | koi-render | Koi sprites, painted once, posed per frame | `crates/koi-render/src/koi.rs:69` |
 | `Event`, `Status` | koi-audio | Messages to and from the audio thread | `crates/koi-audio/src/lib.rs:45` |
 | `Caps`, `Input` | koi-term | What the terminal can draw, and what it sent | `crates/koi-term/src/lib.rs:499` |
-| `Config`, `State` | koi (binary) | Settings, and what's remembered | `src/config.rs:138`, `src/state.rs:10` |
+| `Config`, `State` | koi (binary) | Settings, and what's remembered | `src/config.rs:136`, `src/state.rs:10` |
 | `Pond` | koi-web | Everything above, for one canvas | `crates/koi-web/src/lib.rs:110` |
 
 In the terminal, `Scene` groups the per-window parts (`src/main.rs:203-210`).
@@ -36,13 +36,13 @@ In the terminal, `Scene` groups the per-window parts (`src/main.rs:203-210`).
 
 ### Drawing
 
-`Water::render(&mut self, shadows: &[Shadow]) -> &[u8]` returns straight RGBA, `w` x `h` (`crates/koi-render/src/water.rs:496-498`). The bytes are Water's own buffer, lent out. While the caller holds them, the borrow checker won't let anything else touch the `Water`. The web page copies them out before moving on (`crates/koi-web/src/lib.rs:214`). `Poser::pose` lends its sprite the same way (`crates/koi-render/src/koi.rs:251`).
+`Water::render(&mut self, shadows: &[Shadow]) -> &[u8]` returns straight RGBA, `w` x `h` (`crates/koi-render/src/water.rs:497-499`). The bytes are Water's own buffer, lent out. While the caller holds them, the borrow checker won't let anything else touch the `Water`. The web page copies them out before moving on (`crates/koi-web/src/lib.rs:217`). `Poser::pose` lends its sprite the same way (`crates/koi-render/src/koi.rs:251`).
 
 ### Loading what can fail
 
-@excerpt src/config.rs:303-306 mark=306
+@excerpt src/config.rs:300-303 mark=303
 
-Problems come in two sizes. A bad key is a warning in the `Vec<String>`, and its default stays. Only a file that can't be read or parsed is an `Err`. At startup that exits (`src/main.rs:122-127`). On a hot reload it becomes a message and the running config stays (`src/main.rs:595`). The theme code splits things the same way. `Catalog::load` can't fail at all and returns its warnings beside the catalog (`crates/koi-theme/src/lib.rs:494`). `Catalog::resolve` returns `Result<Theme, String>` for a missing or broken theme (`crates/koi-theme/src/lib.rs:542`), and a `Theme` that did resolve still carries its own `warnings` (`crates/koi-theme/src/lib.rs:468-469`).
+Problems come in two sizes. A bad key is a warning in the `Vec<String>`, and its default stays. Only a file that can't be read or parsed is an `Err`. At startup that exits (`src/main.rs:122-127`). On a hot reload it becomes a message and the running config stays (`src/main.rs:599`). The theme code splits things the same way. `Catalog::load` can't fail at all and returns its warnings beside the catalog (`crates/koi-theme/src/lib.rs:494`). `Catalog::resolve` returns `Result<Theme, String>` for a missing or broken theme (`crates/koi-theme/src/lib.rs:542`), and a `Theme` that did resolve still carries its own `warnings` (`crates/koi-theme/src/lib.rs:468-469`).
 
 `State::load` can't fail. A missing file means nothing is remembered (`src/state.rs:27-28`).
 
@@ -50,14 +50,14 @@ Problems come in two sizes. A bad key is a warning in the `Vec<String>`, and its
 
 `read_input(timeout) -> Vec<u8>` waits up to `timeout` and returns up to 4 KiB. Its doc warns that an escape sequence can be split across two reads (`crates/koi-term/src/lib.rs:572-574`). `parse_input` is shaped around that:
 
-@excerpt crates/koi-term/src/lib.rs:800-804 mark=804
+@excerpt crates/koi-term/src/lib.rs:809-812 mark=812
 
 The loop keeps a `pending` buffer. It appends each read, parses, and removes only the bytes that were used:
 
 @excerpt src/main.rs:443-451 mark=443,450-451
 
 ::: check `parse_input` returns `(events, used)`. What goes wrong if the caller drops the unused bytes instead of keeping them?
-Say a read ends inside a mouse report, after `\x1b[<0;1`. `parse_input` stops there and leaves it unused. Dropped, the start is lost, and the next read begins `2;7M`. With no `\x1b` in front, each byte parses as a key (`crates/koi-term/src/lib.rs:860`), and `2` is a food key by default (`src/config.rs:134`). A click becomes a food change. `pending.drain(..used)` at `src/main.rs:451` is what prevents that, and the test `split_reads_carry_over` splits one input at every byte to check it (`crates/koi-term/src/lib.rs:1018-1033`).
+Say a read ends inside a mouse report, after `\x1b[<0;1`. `parse_input` stops there and leaves it unused. Dropped, the start is lost, and the next read begins `2;7M`. With no `\x1b` in front, each byte parses as a key (`crates/koi-term/src/lib.rs:882`), and `2` is a food key by default (`src/config.rs:132`). A click becomes a food change. `pending.drain(..used)` at `src/main.rs:451` is what prevents that. The test `split_reads_carry_over` splits one input at every byte to check it, except right after an Esc, where a lone Esc is a real key and the parser can't tell the two apart (`crates/koi-term/src/lib.rs:1040-1055`).
 :::
 :::
 
@@ -77,7 +77,7 @@ A lifetime could tie them, as a `Poser` that borrows the `School`. But the loop 
 Every coordinate is an `f32` or a `usize`, but there are several unit systems:
 
 - **Simulation units.** Where koi and food live. koi-sim calls them water pixels.
-- **Water image pixels.** What `Water::render` draws. `per_sim` converts to them, and `Water::splash` does the conversion on the way in (`crates/koi-render/src/water.rs:428-432`).
+- **Water image pixels.** What `Water::render` draws. `per_sim` converts to them, and `Water::splash` does the conversion on the way in (`crates/koi-render/src/water.rs:429-433`).
 - **Sprite pixels.** `Poser::new` takes `scale` as sprite pixels per water pixel (`crates/koi-render/src/koi.rs:191`).
 - **Cells.** `Input` gives 1-based columns and rows. The loop turns them into simulation units itself (`src/main.rs:506-507`).
 - **Body lengths.** `pet`'s `reach` is in BL (`crates/koi-sim/src/lib.rs:614-615`).
@@ -90,7 +90,7 @@ Only the doc comments carry the units, so they have to stay right. `School` work
 A seed is a `u64` into `School::new` and `Water::new`. The web constructor takes a `u32` and widens it (`crates/koi-web/src/lib.rs:144-147`). "0 means a new pond every start" is a config rule, not a type. `main` swaps 0 for the clock before anything sees it (`src/main.rs:380-383`).
 
 ::: inferred
-koi-sim has no clock and no other source of randomness. Its only random state is the `rng` field, seeded as `seed | 1` (`crates/koi-sim/src/lib.rs:503`). That keeps xorshift away from 0, where it would stay 0 forever. It also means seeds 2 and 3 give the same school. The water's layout mixes the seed in differently (`crates/koi-render/src/water.rs:846`), so those two ponds likely differ in their stones but not their koi.
+koi-sim has no clock and no other source of randomness. Its only random state is the `rng` field, seeded as `seed | 1` (`crates/koi-sim/src/lib.rs:503`). That keeps xorshift away from 0, where it would stay 0 forever. It also means seeds 2 and 3 give the same school. The water's layout mixes the seed in differently (`crates/koi-render/src/water.rs:847`), so those two ponds likely differ in their stones but not their koi.
 :::
 
 ### `String` errors are for people

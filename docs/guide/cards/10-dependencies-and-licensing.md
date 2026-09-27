@@ -2,7 +2,7 @@
 
 > What does koi need to build and run, and are all its licenses compatible?
 
-koi pulls in 133 crates from crates.io. Most come in through three direct dependencies: wgpu for the GPU renderer, rodio and symphonia for playing and decoding music, and serde and toml for config and themes.
+koi pulls in 133 crates from crates.io. Most come in through three direct dependencies: wgpu for the GPU renderer, rodio for playing music (it decodes with symphonia), and serde and toml for config and themes.
 
 On Linux the finished binary needs one system library besides the C runtime: ALSA's `libasound.so.2`, for sound. Vulkan is optional. koi looks for it when it starts and uses the CPU renderer if it's missing.
 
@@ -11,12 +11,12 @@ koi itself is MIT or Apache-2.0, and almost everything it uses is too. There are
 ::: medium
 ### What each direct dependency is for
 
-@excerpt Cargo.toml:20-32
+@excerpt Cargo.toml:20-31
 
 | Crate | Why koi needs it |
 |---|---|
 | wgpu, bytemuck, pollster | The GPU renderer: device, buffers, and waiting on GPU work |
-| rodio, symphonia | Audio output, and decoding mp3 and Ogg Vorbis |
+| rodio | Audio output, and decoding mp3 and Ogg Vorbis through symphonia, which it pulls in |
 | serde, serde_json, toml | Reading config, themes, state and the loudness cache |
 | rustix, signal-hook, windows-sys | Talking to the operating system: terminal modes, shared memory, signals |
 | base64, miniz_oxide | Encoding images for the terminal's graphics protocol |

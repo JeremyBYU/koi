@@ -1,5 +1,5 @@
 {
- ".github/workflows/ci.yml:18-25": [
+ ".github/workflows/ci.yml:20-27": [
   "      - run: cargo fmt --check",
   "      # lavapipe, a Vulkan driver on the CPU, so the GPU and CPU renderers are compared.",
   "      - run: echo \"VK_ICD_FILENAMES=$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)\" >> \"$GITHUB_ENV\"",
@@ -9,11 +9,11 @@
   "        env:",
   "          RUSTDOCFLAGS: -D warnings"
  ],
- ".github/workflows/ci.yml:38-39": [
+ ".github/workflows/ci.yml:40-41": [
   "  # Experimental: no terminal test yet, and the GPU parity tests check the CPU half only.",
   "  windows:"
  ],
- ".github/workflows/ci.yml:94-94": [
+ ".github/workflows/ci.yml:96-96": [
   "      - uses: dtolnay/rust-toolchain@1.90"
  ],
  ".github/workflows/pages.yml:49-49": [
@@ -21,8 +21,8 @@
  ],
  ".github/workflows/release.yml:10-19": [
   "jobs:",
-  "  # The archives and the web page's download links are named from Cargo.toml, so a tag that",
-  "  # names another version would publish mislabelled files.",
+  "  # The archives are named from Cargo.toml, so a tag that names another version would publish",
+  "  # mislabelled files.",
   "  version:",
   "    runs-on: ubuntu-24.04",
   "    steps:",
@@ -34,14 +34,21 @@
  ".github/workflows/release.yml:5-5": [
   "    tags: ['v*']"
  ],
- ".github/workflows/release.yml:84-85": [
+ ".github/workflows/release.yml:75-78": [
+  "  # The same checks as CI, on the tagged commit. Nothing is published unless they pass.",
+  "  ci:",
+  "    needs: version",
+  "    uses: ./.github/workflows/ci.yml"
+ ],
+ ".github/workflows/release.yml:89-91": [
   "      - run: cd dist && sha256sum -- *.tar.gz *.zip > SHA256SUMS",
-  "      - run: gh release create \"$GITHUB_REF_NAME\" dist/* --title \"koi $GITHUB_REF_NAME\" --generate-notes"
+  "      # Named, not dist/*: the CI run above also leaves its macOS screenshot among the artifacts.",
+  "      - run: gh release create \"$GITHUB_REF_NAME\" dist/*.tar.gz dist/*.zip dist/SHA256SUMS --title \"koi $GITHUB_REF_NAME\" --generate-notes"
  ],
- ".github/workflows/release.yml:85-85": [
-  "      - run: gh release create \"$GITHUB_REF_NAME\" dist/* --title \"koi $GITHUB_REF_NAME\" --generate-notes"
+ ".github/workflows/release.yml:91-91": [
+  "      - run: gh release create \"$GITHUB_REF_NAME\" dist/*.tar.gz dist/*.zip dist/SHA256SUMS --title \"koi $GITHUB_REF_NAME\" --generate-notes"
  ],
- "Cargo.toml:13-32": [
+ "Cargo.toml:13-31": [
   "[workspace.dependencies]",
   "koi-audio = { path = \"crates/koi-audio\" }",
   "koi-render = { path = \"crates/koi-render\" }",
@@ -58,12 +65,11 @@
   "serde = { version = \"1\", features = [\"derive\"] }",
   "serde_json = \"1\"",
   "signal-hook = \"0.4\"",
-  "symphonia = { version = \"0.5\", default-features = false, features = [\"mp3\", \"ogg\", \"vorbis\"] }",
   "toml = \"0.9\"",
   "wgpu = { version = \"30.0.1\", default-features = false, features = [\"vulkan\", \"wgsl\", \"std\"] }",
   "windows-sys = \"0.61\""
  ],
- "Cargo.toml:20-32": [
+ "Cargo.toml:20-31": [
   "base64 = \"0.22\"",
   "bytemuck = { version = \"1.25\", features = [\"derive\"] }",
   "miniz_oxide = \"0.9\"",
@@ -73,12 +79,11 @@
   "serde = { version = \"1\", features = [\"derive\"] }",
   "serde_json = \"1\"",
   "signal-hook = \"0.4\"",
-  "symphonia = { version = \"0.5\", default-features = false, features = [\"mp3\", \"ogg\", \"vorbis\"] }",
   "toml = \"0.9\"",
   "wgpu = { version = \"30.0.1\", default-features = false, features = [\"vulkan\", \"wgsl\", \"std\"] }",
   "windows-sys = \"0.61\""
  ],
- "Cargo.toml:64-78": [
+ "Cargo.toml:63-77": [
   "# The release archives: scripts/release.sh.",
   "[profile.dist]",
   "inherits = \"release\"",
@@ -95,7 +100,7 @@
   "panic = \"abort\"",
   "strip = true"
  ],
- "Cargo.toml:65-69": [
+ "Cargo.toml:64-68": [
   "[profile.dist]",
   "inherits = \"release\"",
   "lto = \"fat\"",
@@ -136,22 +141,22 @@
  "crates/koi-audio/src/lib.rs:161-161": [
   "    let sink = match DeviceSinkBuilder::open_default_sink() {"
  ],
- "crates/koi-audio/src/lib.rs:239-239": [
+ "crates/koi-audio/src/lib.rs:238-238": [
   "            Err(RecvTimeoutError::Disconnected) => break,"
  ],
- "crates/koi-audio/src/lib.rs:273-276": [
+ "crates/koi-audio/src/lib.rs:272-275": [
   "                Err(e) => {",
   "                    failures += 1;",
   "                    let _ = status.send(Status::Error(format!(\"{}: {e}\", track.path.display())));",
   "                }"
  ],
- "crates/koi-audio/src/lib.rs:294-294": [
+ "crates/koi-audio/src/lib.rs:293-293": [
   "fn measure_all(paths: Vec<(PathBuf, Option<&'static [u8]>)>, cache_file: Option<PathBuf>, gains: Sender<(PathBuf, f32)>) {"
  ],
- "crates/koi-audio/src/lib.rs:296-296": [
+ "crates/koi-audio/src/lib.rs:295-295": [
   "        cache_file.as_ref().and_then(|f| fs::read_to_string(f).ok()).and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();"
  ],
- "crates/koi-audio/src/lib.rs:403-403": [
+ "crates/koi-audio/src/lib.rs:402-402": [
   "impl Source for AmbientSource {"
  ],
  "crates/koi-audio/src/lib.rs:45-45": [
@@ -195,7 +200,7 @@
   "            water.splash(splash);",
   "        }"
  ],
- "crates/koi-render/src/frame.rs:195-195": [
+ "crates/koi-render/src/frame.rs:193-193": [
   "    fn advance_steps_whole_ticks_and_skips_a_long_pause() {"
  ],
  "crates/koi-render/src/gpu.rs:5-6": [
@@ -252,7 +257,7 @@
   "    }",
   "}"
  ],
- "crates/koi-render/src/water.rs:1091-1091": [
+ "crates/koi-render/src/water.rs:1092-1092": [
   "    std::thread::scope(|scope| {"
  ],
  "crates/koi-render/src/water.rs:25-27": [
@@ -275,7 +280,7 @@
  "crates/koi-render/src/water.rs:34-34": [
   "pub struct Water {"
  ],
- "crates/koi-render/src/water.rs:391-401": [
+ "crates/koi-render/src/water.rs:392-402": [
   "        let (gpu, old) = match &self.backend {",
   "            Backend::Gpu(g) => {",
   "                let bytes = ow * oh * 4;",
@@ -288,25 +293,25 @@
   "            }",
   "            Backend::Cpu(c) => (None, [c.height.clone(), c.prev_height.clone()]),"
  ],
- "crates/koi-render/src/water.rs:416-416": [
+ "crates/koi-render/src/water.rs:417-417": [
   "        let mut fresh = Water::new(gpu.as_ref(), w, h, per_sim, ratio, theme, self.seed);"
  ],
- "crates/koi-render/src/water.rs:428-432": [
+ "crates/koi-render/src/water.rs:429-433": [
   "    /// Queues a splash, in simulation units, for the next `step`.",
   "    pub fn splash(&mut self, splash: Splash) {",
   "        let [kx, ky] = self.per_sim;",
   "        self.splashes.push(Splash { x: splash.x * kx, y: splash.y * ky, radius: splash.radius * kx, amount: splash.amount });",
   "    }"
  ],
- "crates/koi-render/src/water.rs:448-448": [
+ "crates/koi-render/src/water.rs:449-449": [
   "        match &mut self.backend {"
  ],
- "crates/koi-render/src/water.rs:496-498": [
+ "crates/koi-render/src/water.rs:497-499": [
   "    /// The painted pond with koi shadows (in simulation units), ripples, clouds, petals and",
   "    /// weather, as straight RGBA `w` x `h`.",
   "    pub fn render(&mut self, shadows: &[Shadow]) -> &[u8] {"
  ],
- "crates/koi-render/src/water.rs:556-556": [
+ "crates/koi-render/src/water.rs:557-557": [
   "        match &mut self.backend {"
  ],
  "crates/koi-render/src/water.rs:59-65": [
@@ -327,7 +332,7 @@
   "    Cpu(CpuWater),",
   "}"
  ],
- "crates/koi-render/src/water.rs:846-846": [
+ "crates/koi-render/src/water.rs:847-847": [
   "        let s = (seed ^ (seed >> 32)) as u32;"
  ],
  "crates/koi-render/tests/parity.rs:44-56": [
@@ -528,7 +533,7 @@
  "crates/koi-synth/src/lib.rs:75-75": [
   "/// The level of each layer, from the listening test of 2026-09-26: the pad left out, the"
  ],
- "crates/koi-term/src/lib.rs:1018-1033": [
+ "crates/koi-term/src/lib.rs:1040-1055": [
   "    /// A read can end partway through a sequence. Carrying the leftover into the next read",
   "    /// gives the same events as one read, wherever the split falls, except that a split right",
   "    /// after an Esc reads as a lone Esc.",
@@ -546,7 +551,10 @@
   "        }",
   "    }"
  ],
- "crates/koi-term/src/lib.rs:1039-1039": [
+ "crates/koi-term/src/lib.rs:1060-1060": [
+  "    fn long_unfinished_csi_is_dropped() {"
+ ],
+ "crates/koi-term/src/lib.rs:1071-1071": [
   "    fn random_bytes_never_panic() {"
  ],
  "crates/koi-term/src/lib.rs:25-29": [
@@ -617,6 +625,9 @@
   "                restore();",
   "            }"
  ],
+ "crates/koi-term/src/lib.rs:650-650": [
+  "            rustix::fs::fallocate(&file, rustix::fs::FallocateFlags::empty(), 0, u64::try_from(capacity).expect(\"slot size fits u64\")).map_err(|e| {"
+ ],
  "crates/koi-term/src/lib.rs:66-70": [
   "            // A panic on another thread (the audio decoding a bad file, say) leaves the pond",
   "            // running, so the terminal must stay as the pond needs it.",
@@ -624,10 +635,10 @@
   "                restore();",
   "            }"
  ],
- "crates/koi-term/src/lib.rs:685-685": [
+ "crates/koi-term/src/lib.rs:693-693": [
   "        self.bytes += data.len();"
  ],
- "crates/koi-term/src/lib.rs:687-698": [
+ "crates/koi-term/src/lib.rs:695-706": [
   "        if self.direct {",
   "            // Level 1 compresses the water about as well as 6, several times faster.",
   "            let text = B64.encode(miniz_oxide::deflate::compress_to_vec_zlib(data, 1));",
@@ -641,7 +652,7 @@
   "            }",
   "            return Ok(());"
  ],
- "crates/koi-term/src/lib.rs:700-712": [
+ "crates/koi-term/src/lib.rs:708-720": [
   "        let name = format!(\"/{}-{}\", self.prefix, self.seq);",
   "        #[cfg(target_os = \"linux\")]",
   "        {",
@@ -656,13 +667,13 @@
   "        sys::write_shm(&name, data)?;",
   "        out.extend_from_slice(format!(\"\\x1b_G{keys},t=s,S={}{quiet};{}\\x1b\\\\\", data.len(), B64.encode(&name)).as_bytes());"
  ],
- "crates/koi-term/src/lib.rs:707-707": [
+ "crates/koi-term/src/lib.rs:715-715": [
   "            std::fs::hard_link(path, format!(\"/dev/shm{name}\"))?;"
  ],
- "crates/koi-term/src/lib.rs:724-724": [
+ "crates/koi-term/src/lib.rs:732-732": [
   "impl Drop for ShmRing {"
  ],
- "crates/koi-term/src/lib.rs:729-730": [
+ "crates/koi-term/src/lib.rs:737-738": [
   "                // SAFETY: the mapping `new` made, `capacity` bytes, not used after this.",
   "                let _ = unsafe { rustix::mm::munmap(ptr.cast(), self.capacity) };"
  ],
@@ -679,15 +690,17 @@
   "            setup.extend_from_slice(b\"\\x1b[?1000h\\x1b[?1002h\\x1b[?1006h\");",
   "        }"
  ],
- "crates/koi-term/src/lib.rs:800-804": [
-  "/// late XTVERSION answer, a lone Esc, Esc chords, and single-byte keys.",
+ "crates/koi-term/src/lib.rs:809-812": [
   "/// Also returns how many bytes the events used. An escape sequence cut off at the end of",
   "/// `input` is left over, for the caller to put in front of the next read, since a read can",
-  "/// end partway through one.",
+  "/// end partway through one. Past 512 bytes an unfinished sequence is given up on instead.",
   "pub fn parse_input(input: &[u8]) -> (Vec<Input>, usize) {"
  ],
+ "crates/koi-term/src/lib.rs:822-822": [
+  "                if rest.len() < 512 {"
+ ],
  "crates/koi-term/src/lib.rs:841-841": [
-  "                None if printable && rest.len() < 512 => break,"
+  "                if rest.len() < 512 {"
  ],
  "crates/koi-term/src/lib.rs:86-89": [
   "impl Drop for Terminal {",
@@ -695,7 +708,10 @@
   "        restore();",
   "    }"
  ],
- "crates/koi-term/src/lib.rs:860-860": [
+ "crates/koi-term/src/lib.rs:863-863": [
+  "                None if printable && rest.len() < 512 => break,"
+ ],
+ "crates/koi-term/src/lib.rs:882-882": [
   "            events.push(Input::Key(rest[0]));"
  ],
  "crates/koi-term/src/lib.rs:94-94": [
@@ -761,18 +777,22 @@
  "crates/koi-theme/src/lib.rs:542-542": [
   "    pub fn resolve(&self, name: &str) -> Result<Theme, String> {"
  ],
- "crates/koi-theme/src/lib.rs:634-634": [
+ "crates/koi-theme/src/lib.rs:663-663": [
   "    pub fn next_scene(&self, current: &Summary, forward: bool) -> Option<String> {"
  ],
- "crates/koi-theme/src/lib.rs:650-654": [
-  "        let pick = members",
-  "            .iter()",
-  "            .find(|s| s.time == current.time)",
-  "            .or_else(|| members.iter().find(|s| s.time == Time::Noon))",
-  "            .or_else(|| members.iter().min_by_key(|s| s.time))?;"
+ "crates/koi-theme/src/lib.rs:681-685": [
+  "            let pick = members",
+  "                .iter()",
+  "                .find(|s| s.time == current.time)",
+  "                .or_else(|| members.iter().find(|s| s.time == Time::Noon))",
+  "                .or_else(|| members.iter().min_by_key(|s| s.time));"
  ],
- "crates/koi-theme/src/lib.rs:660-660": [
+ "crates/koi-theme/src/lib.rs:696-696": [
   "    pub fn next_time(&self, current: &Summary, later: bool) -> Option<String> {"
+ ],
+ "crates/koi-theme/src/lib.rs:729-730": [
+  "        name: text(\"name\")?.unwrap_or_else(|| id.to_string()).chars().filter(|c| !c.is_control()).collect(),",
+  "        description: text(\"description\")?.unwrap_or_default().chars().filter(|c| !c.is_control()).collect(),"
  ],
  "crates/koi-web/Cargo.toml:14-19": [
   "[dependencies]",
@@ -815,10 +835,10 @@
   "        let sim = from + 1000.0 * koi_render::advance(&mut self.school, &mut self.water, &mut self.before, (now_ms - from) / 1000.0);",
   "        self.sim_ms = Some(sim);"
  ],
- "crates/koi-web/src/lib.rs:214-214": [
+ "crates/koi-web/src/lib.rs:217-217": [
   "            self.water_image.extend_from_slice(self.water.render(&self.school.shadows()));"
  ],
- "crates/koi-web/src/lib.rs:355-355": [
+ "crates/koi-web/src/lib.rs:358-358": [
   "        (0..frames).flat_map(|_| <[f32; 2]>::from(self.ambient.render_frame())).collect()"
  ],
  "docs/ARCHITECTURE.md:112-112": [
@@ -831,7 +851,7 @@
   "The simulation works in water pixels: a grid of `water_px` pixels per cell width, with the height set by the real cell aspect. Koi, food and splashes all use it. `layers.rs` scales it to screen pixels. A painted theme renders the water on the same grid. A pixel theme renders it on its art grid, the window's screen pixels divided by `pixel_px` (rounded up), and `Water` scales the splashes and koi shadows it is given by `per_sim`, its pixels per simulation unit."
  ],
  "docs/PERFORMANCE.md:7-7": [
-  "Each prototype ran in a 160x45 Ghostty window under XWayland, with `TMUX` unset. CPU is in percent of one core, averaged over 10 s, for Ghostty and for the game process separately. Each prototype ran 3 times, and the tables show the median, with the range in brackets. The floor tests ran once. A screen recorder captured about 47 to 53 fps from the window, so about 140 to 160 frames per 3 s. \"Distinct\" frames close to \"captured\" means no frames were dropped at that rate. A 30 fps sender shows about half."
+  "Each prototype ran in a 160x45 Ghostty window under XWayland, with `TMUX` unset. CPU is in percent of one core, averaged over 10 s, for Ghostty and for the game process separately. Each prototype ran 3 times, and the tables show the median, with the range in brackets. The floor tests ran once. A screen recorder captured about 47 to 53 fps from the window, so about 140 to 160 frames per 3 s. When nearly every captured frame is distinct, the window changed at least as often as the recorder sampled. That can't show that all 60 frames arrived. A 30 fps sender shows about half."
  ],
  "docs/PERFORMANCE.md:92-92": [
   "These are estimates from the prototypes and the floor tests. The finished game was not measured the same way."
@@ -858,10 +878,6 @@
   "  echo \"wasm-bindgen $have does not match the crate's $want: cargo install --locked wasm-bindgen-cli --version $want\" >&2",
   "  exit 1",
   "fi"
- ],
- "scripts/build-site.sh:32-33": [
-  "version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == \"koi-pond\") | .version')",
-  "sed -i \"s/{{version}}/$version/g\" \"$out/index.html\""
  ],
  "scripts/fetch-music.sh:41-41": [
   "    curl -fL --retry 3 -o \"$dir/$file.part\" \"$url\""
@@ -947,47 +963,44 @@
  "site/main.js:64-64": [
   "  const pond = new Pond(size[0], size[1], density(...size), new URLSearchParams(location.search).get(\"scene\") ?? saved(\"theme\") ?? \"summer-garden\", (Math.random() * 2 ** 32) >>> 0);"
  ],
- "src/config.rs:100-100": [
-  "volume = 0.6"
- ],
- "src/config.rs:134-134": [
+ "src/config.rs:132-132": [
   "food = [\"1\", \"2\", \"3\", \"4\", \"5\"]"
  ],
- "src/config.rs:138-138": [
+ "src/config.rs:136-136": [
   "pub struct Config {"
  ],
- "src/config.rs:160-160": [
+ "src/config.rs:157-157": [
   "pub enum Backend {"
  ],
- "src/config.rs:166-166": [
+ "src/config.rs:163-163": [
   "#[serde(rename_all = \"kebab-case\")]"
  ],
- "src/config.rs:167-167": [
+ "src/config.rs:164-164": [
   "pub enum Protocol {"
  ],
- "src/config.rs:285-285": [
+ "src/config.rs:282-282": [
   "fn place_dir(place: Place, windows: bool, var: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {"
  ],
- "src/config.rs:303-306": [
+ "src/config.rs:300-303": [
   "/// Loads `explicit`, or the default path if that exists, over the defaults. A key that is",
   "/// unknown or has a value the game cannot use comes back as a warning, and the default",
   "/// stays. Only a file that cannot be read or parsed is an error.",
   "pub fn load(explicit: Option<&Path>) -> Result<(Config, Vec<String>), String> {"
  ],
- "src/config.rs:306-306": [
+ "src/config.rs:303-303": [
   "pub fn load(explicit: Option<&Path>) -> Result<(Config, Vec<String>), String> {"
  ],
- "src/config.rs:307-307": [
+ "src/config.rs:304-304": [
   "    let mut table: toml::Table = DEFAULT.parse().map_err(|e| format!(\"built-in default config: {e}\"))?;"
  ],
- "src/config.rs:314-315": [
+ "src/config.rs:311-312": [
   "        let text = std::fs::read_to_string(path).map_err(|e| format!(\"{}: {e}\", path.display()))?;",
   "        let user: toml::Table = text.parse().map_err(|e| format!(\"{}: {e}\", path.display()))?;"
  ],
- "src/config.rs:323-323": [
+ "src/config.rs:320-320": [
   "                let Some(default) = table.get(&section).and_then(|s| s.get(&key)).cloned() else {"
  ],
- "src/config.rs:327-334": [
+ "src/config.rs:324-331": [
   "                // Each value is tried in a whole config, so serde and `check` judge it with",
   "                // its real type and every other value already accepted.",
   "                let mut trial = table.clone();",
@@ -997,19 +1010,19 @@
   "                    Err(e) => warnings.push(format!(\"{}: `{section}.{key}` {e}; using the default {default}\", path.display())),",
   "                }"
  ],
- "src/config.rs:355-359": [
+ "src/config.rs:352-356": [
   "        // `Duration` panics on a negative, NaN or huge number of seconds.",
   "        for secs in [self.fps.input_secs, self.fps.ripple_secs, f64::from(self.hud.peek_secs), f64::from(self.hud.hold_secs)] {",
   "            if !(0.0..=86_400.0).contains(&secs) {",
   "                return Err(format!(\"expects seconds from 0 to 86400, got {secs}\"));",
   "            }"
  ],
- "src/config.rs:361-363": [
+ "src/config.rs:358-360": [
   "        // Each koi and each water pixel costs shared memory, which is RAM.",
   "        if self.pond.koi > 50 {",
   "            return Err(format!(\"expects at most 50 koi, got {}\", self.pond.koi));"
  ],
- "src/config.rs:361-366": [
+ "src/config.rs:358-363": [
   "        // Each koi and each water pixel costs shared memory, which is RAM.",
   "        if self.pond.koi > 50 {",
   "            return Err(format!(\"expects at most 50 koi, got {}\", self.pond.koi));",
@@ -1017,12 +1030,18 @@
   "        if self.render.water_px > 16 || self.render.fish_px > 64 {",
   "            return Err(format!(\"expects water_px up to 16 and fish_px up to 64, got {} and {}\", self.render.water_px, self.render.fish_px));"
  ],
- "src/config.rs:71-72": [
+ "src/config.rs:69-70": [
   "# Theme files and this file are reloaded when they change. Changes to [render], [audio],",
   "# hud.hover, input.mouse, pond.koi and pond.seed apply on the next start."
  ],
+ "src/config.rs:98-98": [
+  "volume = 0.6"
+ ],
  "src/hud.rs:138-138": [
   "struct Peek {"
+ ],
+ "src/hud.rs:342-342": [
+  "        self.title = title.chars().filter(|c| !c.is_control()).collect();"
  ],
  "src/hud.rs:51-60": [
   "pub enum Reply {",
@@ -1045,13 +1064,13 @@
  "src/layers.rs:15-15": [
   "const WATER_SLOTS: usize = 6;"
  ],
- "src/layers.rs:152-152": [
+ "src/layers.rs:151-151": [
   "enum Sink {"
  ],
- "src/layers.rs:233-233": [
+ "src/layers.rs:232-232": [
   "        let sink = tier.framed(tmux.is_some()).then(|| match (tier, tmux) {"
  ],
- "src/layers.rs:233-249": [
+ "src/layers.rs:232-248": [
   "        let sink = tier.framed(tmux.is_some()).then(|| match (tier, tmux) {",
   "            (Tier::Kitty | Tier::KittyDirect, id) => Sink::Placeholders { id: id.expect(\"a framed Kitty tier is only in tmux\") },",
   "            (Tier::Sixel, _) => {",
@@ -1070,7 +1089,7 @@
   "            (Tier::Blocks, _) => Sink::Blocks { truecolor: caps.truecolor, prev: Vec::new() },",
   "        });"
  ],
- "src/layers.rs:250-250": [
+ "src/layers.rs:249-249": [
   "        let ring = |slots: usize, capacity: usize| if tier == Tier::KittyDirect { Ok(ShmRing::direct()) } else { ShmRing::new(slots, capacity) };"
  ],
  "src/layers.rs:29-29": [
@@ -1112,10 +1131,10 @@
   "        }",
   "    }"
  ],
- "src/layers.rs:343-343": [
+ "src/layers.rs:341-341": [
   "            match &mut t.sink {"
  ],
- "src/layers.rs:386-386": [
+ "src/layers.rs:384-384": [
   "        match &mut f.sink {"
  ],
  "src/layers.rs:44-51": [
@@ -1128,9 +1147,11 @@
   "        }",
   "    }"
  ],
- "src/layers.rs:492-501": [
+ "src/layers.rs:486-498": [
+  "        let (screen_w, screen_h) = (self.grid.cols * self.grid.cell_w, self.grid.rows * self.grid.cell_h);",
+  "        if let Some((rgba, w, h)) = water",
   "            && let Some(water_ring) = &mut self.water_ring",
-  "            && (force || rgba != self.last_water.as_slice())",
+  "            && rgba != self.last_water.as_slice()",
   "        {",
   "            out.extend_from_slice(b\"\\x1b[H\");",
   "            let keys = |w: usize, h: usize| format!(\"a=T,f=32,s={w},v={h},i={WATER_ID},p=1,c={},r={},z=-1000,C=1\", self.grid.cols, self.grid.rows);",
@@ -1138,10 +1159,8 @@
   "                upscale(rgba, w, self.pixel, screen_w, screen_h, &mut self.scaled);",
   "                water_ring.transmit(out, &self.scaled, &keys(screen_w, screen_h))?;",
   "            } else {",
-  "                water_ring.transmit(out, rgba, &keys(w, h))?;"
- ],
- "src/layers.rs:533-533": [
-  "            self.renders += 1;"
+  "                water_ring.transmit(out, rgba, &keys(w, h))?;",
+  "            }"
  ],
  "src/layers.rs:55-62": [
   "    pub fn fps_cap(self, pixel: bool) -> u32 {",
@@ -1165,10 +1184,10 @@
   "        in_tmux || matches!(self, Tier::Sixel | Tier::Blocks)",
   "    }"
  ],
- "src/layers.rs:774-774": [
+ "src/layers.rs:769-769": [
   "    fn tier_names_are_protocol_names() {"
  ],
- "src/layers.rs:774-786": [
+ "src/layers.rs:769-781": [
   "    fn tier_names_are_protocol_names() {",
   "        for tier in [Tier::Kitty, Tier::KittyDirect, Tier::Sixel, Tier::Blocks] {",
   "            let protocol = match tier {",
@@ -1387,19 +1406,19 @@
  "src/main.rs:588-588": [
   "                    (scene.school.speed, scene.school.calmness) = (fresh.pond.speed, fresh.pond.calmness);"
  ],
- "src/main.rs:595-595": [
+ "src/main.rs:599-599": [
   "                Err(e) => problems.push(e),"
  ],
  "src/main.rs:61-61": [
   "fn main() -> ExitCode {"
  ],
- "src/main.rs:613-613": [
+ "src/main.rs:617-617": [
   "                        scene = build(&cfg, &next, gpu, seed, &mut out, Some(scene), tier, tmux, &caps)?;"
  ],
- "src/main.rs:648-648": [
+ "src/main.rs:652-652": [
   "        // A resize keeps the seed, so the pond keeps its layout. It chooses the tier again, as"
  ],
- "src/main.rs:661-670": [
+ "src/main.rs:665-674": [
   "            if degrade.is_some() {",
   "                match tier {",
   "                    Tier::Kitty => caps.kitty_shm = false,",
@@ -1411,10 +1430,10 @@
   "            }",
   "            tier = layers::choose(setting, &caps, in_tmux, screen).0;"
  ],
- "src/main.rs:662-662": [
+ "src/main.rs:666-666": [
   "                match tier {"
  ],
- "src/main.rs:662-667": [
+ "src/main.rs:666-671": [
   "                match tier {",
   "                    Tier::Kitty => caps.kitty_shm = false,",
   "                    Tier::KittyDirect => caps.kitty_direct = false,",
@@ -1422,50 +1441,48 @@
   "                    Tier::Blocks => {}",
   "                }"
  ],
- "src/main.rs:675-675": [
+ "src/main.rs:679-679": [
   "            scene = build(&cfg, &theme, gpu, seed, &mut out, None, tier, tmux, &caps)?;"
  ],
- "src/main.rs:685-689": [
+ "src/main.rs:689-693": [
   "        let frame_at = if now - due < interval { due } else { now };",
   "        let frame_start = Instant::now();",
   "        let food_before = scene.school.food.len();",
   "        let behind = frame_at.saturating_duration_since(sim_time).as_secs_f64();",
   "        sim_time += Duration::from_secs_f64(koi_render::advance(&mut scene.school, &mut scene.water, &mut scene.before, behind));"
  ],
- "src/main.rs:686-686": [
-  "        let frame_start = Instant::now();"
- ],
  "src/main.rs:69-70": [
   "                // Read with the config's own names, so a flag and config.toml agree.",
   "                Some(value) if arg == \"--protocol\" => match Protocol::deserialize(value.as_str().into_deserializer()) {"
  ],
- "src/main.rs:694-694": [
+ "src/main.rs:690-690": [
+  "        let frame_start = Instant::now();"
+ ],
+ "src/main.rs:698-698": [
   "        while let Some(status) = audio.and_then(|a| a.status.try_recv().ok()) {"
  ],
- "src/main.rs:696-696": [
+ "src/main.rs:700-700": [
   "                Status::NowPlaying { title } => hud.track(&title, now),"
  ],
- "src/main.rs:715-715": [
+ "src/main.rs:719-719": [
   "            let backend = gpu.map_or(\"cpu\".to_string(), |g| format!(\"gpu {}\", g.adapter));"
  ],
- "src/main.rs:716-716": [
+ "src/main.rs:720-720": [
   "            let protocol = match (tier, tmux) {"
  ],
- "src/main.rs:724-732": [
+ "src/main.rs:726-729": [
+  "            // The most useful fields first, since a narrow window cuts the line.",
+  "            Some((",
   "                format!(",
-  "                    \" {} | {protocol}{terminal} | {backend}{music} | {fps:.1} fps, {sent_fps:.1} sent | target {target} ({reason}) | {} | build p50 {:.2}ms p99 {:.2}ms | {bytes_per_frame} B/frame | shm {shm_rate:.1} MB/s | poses {pose_rate:.0}/s | water {}x{}\",",
-  "                    theme.summary.id,",
-  "                    if focused { \"focused\" } else { \"unfocused\" },",
-  "                    percentile(&build_ms, 0.5),",
-  "                    percentile(&build_ms, 0.99),",
-  "                    scene.water.w,",
-  "                    scene.water.h,",
-  "                ),"
+  "                    \" {} | {protocol}{terminal} | {backend}{music} | {fps:.1} fps, {sent_fps:.1} sent | target {target} ({reason}) | {} | build p50 {:.2}ms p99 {:.2}ms | {bytes_per_frame} B/frame | shm {shm_rate:.1} MB/s | water {}x{}\","
  ],
- "src/main.rs:753-753": [
+ "src/main.rs:750-750": [
+  "        let overlay_cells = text.as_ref().map(|(t, ..)| t.chars().filter(|c| !c.is_control()).take(scene.layers.grid.cols.saturating_sub(1)).count() + 1);"
+ ],
+ "src/main.rs:758-758": [
   "        let blend = ((frame_at - sim_time).as_secs_f32() / DT).min(1.0);"
  ],
- "src/main.rs:767-793": [
+ "src/main.rs:772-791": [
   "        let framed = match scene.layers.compose(&mut out, &scene.school, &poses, &mut scene.poser, water.map(|rgba| (rgba, w, h))) {",
   "            Some(frame) => {",
   "                if hud_shown {",
@@ -1480,32 +1497,25 @@
   "            cells.extend(overlay_cells.map(|n| (1, 1, n)));",
   "            scene.layers.send(&mut out, overlay.as_deref(), &cells)?;",
   "        } else {",
-  "            scene.layers.encode(",
-  "                &mut out,",
-  "                &scene.school,",
-  "                &poses,",
-  "                &mut scene.poser,",
-  "                water.map(|rgba| (rgba, w, h)),",
-  "                overlay.as_deref(),",
-  "                cfg.fps.send_when_unchanged,",
-  "            )?;",
+  "            scene.layers.encode(&mut out, &scene.school, &poses, &mut scene.poser, water.map(|rgba| (rgba, w, h)), overlay.as_deref())?;",
   "            if hud_shown {",
   "                hud.draw(&mut out, &mut scene.layers.ring, now)?;",
   "            }",
-  "        }"
- ],
- "src/main.rs:794-794": [
+  "        }",
   "        if out.len() > header {"
  ],
- "src/main.rs:797-798": [
+ "src/main.rs:791-791": [
+  "        if out.len() > header {"
+ ],
+ "src/main.rs:794-795": [
   "            stdout.write_all(&out)?;",
   "            stdout.flush()?;"
  ],
- "src/main.rs:799-800": [
+ "src/main.rs:796-797": [
   "            if writing.elapsed() > interval {",
   "                ceiling = (ceiling / 2).max(FPS_FLOOR);"
  ],
- "src/main.rs:799-812": [
+ "src/main.rs:796-809": [
   "            if writing.elapsed() > interval {",
   "                ceiling = (ceiling / 2).max(FPS_FLOOR);",
   "                raised = now;",
@@ -1521,7 +1531,7 @@
   "            raised = now;",
   "        }"
  ],
- "src/main.rs:828-828": [
+ "src/main.rs:825-825": [
   "            shm_rate = (scene.layers.ring.bytes - shm_mark) as f32 / seconds / 1e6;"
  ],
  "src/state.rs:10-10": [

@@ -2,6 +2,6 @@
  "command": "just --list",
  "exit": 0,
  "output": "Available recipes:\n    check                  # What CI checks on Linux: formatting, lints, tests and docs (CI also builds on the oldest supported Rust)\n    default                # List the recipes\n    fmt                    # Format the code\n    lint                   # Check formatting and lints\n    music                  # Download the full music set into ~/.local/share/koi-pond/music\n    release *args          # Build the release archives for this machine into dist/\n    run *args              # Run koi from source, with any arguments, such as `just run --theme moonlit-pond`\n    serve port=\"8123\"      # Build the web page and serve it at http://127.0.0.1:PORT\n    shot out seconds *args # Screenshot koi in Ghostty on a private virtual display, such as `just shot /tmp/shot 8 --theme pixel`\n    site                   # Build the web page into target/site\n    smoke shots=\"\"         # Check the built web page in headless Chrome, saving screenshots when given a folder\n    test                   # Run the tests\n    web-tools              # Install the web page's build tools: wasm-bindgen-cli at the version in Cargo.lock, and the wasm target\n",
- "seconds": 0.0029108819871908054,
+ "seconds": 0.0025675400102045387,
  "date": "27 Sep 2026"
 }

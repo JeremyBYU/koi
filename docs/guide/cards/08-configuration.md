@@ -24,7 +24,7 @@ Moonlit Pond first, since state.toml remembers it and config.toml still names th
 
 ### The defaults are the documentation
 
-This is the start of what `--print-default-config` prints. It's also, byte for byte, the base your file is merged over (`src/config.rs:307`), so an explanation can't drift from its value:
+This is the start of what `--print-default-config` prints. It's also, byte for byte, the base your file is merged over (`src/config.rs:304`), so an explanation can't drift from its value:
 
 @run lang=toml ./target/release/koi --print-default-config | head -24
 
@@ -32,13 +32,13 @@ This is the start of what `--print-default-config` prints. It's also, byte for b
 
 Each key in your file is tried on its own, in a full copy of the config. If it fits, it's kept. If not, it becomes a warning naming the key, and the default stays:
 
-@excerpt src/config.rs:327-334
+@excerpt src/config.rs:324-331
 
 So a typo in one key never throws away the rest of your file. Only a file that isn't valid TOML at all is fatal.
 
 ### Where the files are
 
-config.toml and your themes folder are in `~/.config/koi-pond`, state.toml in `~/.local/state/koi-pond`. The `XDG_*` variables move them, and Windows uses `%APPDATA%` and `%LOCALAPPDATA%`. One function works all of this out (`src/config.rs:285`).
+config.toml and your themes folder are in `~/.config/koi-pond`, state.toml in `~/.local/state/koi-pond`. The `XDG_*` variables move them, and Windows uses `%APPDATA%` and `%LOCALAPPDATA%`. One function works all of this out (`src/config.rs:282`).
 
 state.toml is saved by writing a temporary file and renaming it over the old one (`src/state.rs:34-43`), so a crash mid-save can't leave a broken file.
 
@@ -46,7 +46,7 @@ state.toml is saved by writing a temporary file and renaming it over the old one
 
 Once a second the loop checks the modification times of config.toml and the theme files (`src/main.rs:572`). If one changed, it reloads them. Some settings can't change on a running pond:
 
-@excerpt src/config.rs:71-72
+@excerpt src/config.rs:69-70
 
 ::: check You change `audio.volume` in config.toml while koi runs, then restart. Why might the volume still not change?
 If you ever used the volume keys, state.toml holds a volume, and that wins over `audio.volume` (`src/main.rs:179`).
@@ -68,7 +68,7 @@ The browser build never reads config.toml. It has URL parameters (`?scene=` and 
 
 @excerpt crates/koi-web/src/lib.rs:19-22
 
-The default volume is repeated the same way: 0.6 in the page (`site/main.js:336`) and 0.6 in the terminal's defaults (`src/config.rs:100`).
+The default volume is repeated the same way: 0.6 in the page (`site/main.js:336`) and 0.6 in the terminal's defaults (`src/config.rs:98`).
 
 ::: inferred
 These are copies, so they can drift. The page can't read the terminal's defaults, which live in the binary, and no test compares the two.

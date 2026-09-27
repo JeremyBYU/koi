@@ -14,8 +14,8 @@ The code has its own words for the parts of the picture. The two you meet first 
 | Word | What it means | Where |
 |---|---|---|
 | tier | How the pond reaches the terminal: `kitty`, `kitty-direct`, `sixel` or `blocks`, best first | `src/layers.rs:29` |
-| protocol | The setting and flag that pick a tier. The same four names, plus `auto` | `src/config.rs:167` |
-| backend | Where images are rendered: `gpu` or `cpu` | `src/config.rs:160` |
+| protocol | The setting and flag that pick a tier. The same four names, plus `auto` | `src/config.rs:164` |
+| backend | Where images are rendered: `gpu` or `cpu` | `src/config.rs:157` |
 | water pixels | The simulation's grid, `water_px` pixels per cell width. Koi, food and splashes all use it | `crates/koi-sim/src/lib.rs:2` |
 | screen pixels | The terminal's own pixels, which the images are scaled up to | `docs/ARCHITECTURE.md:59` |
 | art grid | A pixel theme's grid: `pixel_px` screen pixels to one art pixel | `crates/koi-theme/src/lib.rs:210` |
@@ -37,10 +37,10 @@ The code has its own words for the parts of the picture. The two you meet first 
 
 @run ./target/release/koi --list-themes | sed -n 1,8p
 
-`t` steps to the next family and `l` to the next time in the same family (`crates/koi-theme/src/lib.rs:634`, `crates/koi-theme/src/lib.rs:660`).
+`t` steps to the next family and `l` to the next time in the same family (`crates/koi-theme/src/lib.rs:663`, `crates/koi-theme/src/lib.rs:696`).
 
 ::: check You press `t` while on Moonlit Pond. Which theme do you get, going by the output above?
-Cedar Shade at Night. `t` moves to the next family, `cedar-shade`, and keeps the current time, night, when that family has it (`crates/koi-theme/src/lib.rs:650-654`).
+Cedar Shade at Night. `t` moves to the next family, `cedar-shade`, and keeps the current time, night, when that family has it (`crates/koi-theme/src/lib.rs:681-685`).
 :::
 :::
 
@@ -49,7 +49,7 @@ Cedar Shade at Night. `t` moves to the next family, `cedar-shade`, and keeps the
 
 **Scene** means three things. To a player it is a family: `t` is "next scene", and the README counts eight. In `koi-theme`, `Scene` is the `[scene]` section of a theme file: floor, rim, pads, weather (`crates/koi-theme/src/lib.rs:367`). In `main.rs`, `Scene` is the set of live objects for one pond: water, school, poser and layers (`src/main.rs:203`). A search for `Scene` finds all three.
 
-**Backend** is two enums. The public one in the config picks GPU or CPU (`src/config.rs:160`). A private one inside `Water` holds that path's state (`crates/koi-render/src/water.rs:62`).
+**Backend** is two enums. The public one in the config picks GPU or CPU (`src/config.rs:157`). A private one inside `Water` holds that path's state (`crates/koi-render/src/water.rs:62`).
 
 **Water pixels** shift inside `koi-render`. In `koi-sim` they are the simulation grid. Inside `Water`, "water pixels" are the water image's own pixels, which in a pixel theme are art pixels. `per_sim` converts between the two:
 
@@ -59,6 +59,6 @@ Cedar Shade at Night. `t` moves to the next family, `cedar-shade`, and keeps the
 
 **Stones** are the HUD's controls, but also a kind of pond rim (`crates/koi-theme/src/lib.rs:279`).
 
-**Pose** is a noun in `koi-sim` (`Pose`, a koi's state) and a verb in `koi-render`: `Poser::pose` paints a koi sprite from a `Pose` (`crates/koi-render/src/koi.rs:251`). The `poses/s` number on the `d` stats line counts those paints (`src/layers.rs:533`).
+**Pose** is a noun in `koi-sim` (`Pose`, a koi's state) and a verb in `koi-render`: `Poser::pose` paints a koi sprite from a `Pose` (`crates/koi-render/src/koi.rs:251`).
 
 :::
