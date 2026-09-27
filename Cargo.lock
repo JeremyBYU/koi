@@ -471,7 +471,7 @@ dependencies = [
 
 [[package]]
 name = "koi-audio"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "koi-sim",
  "koi-synth",
@@ -481,7 +481,7 @@ dependencies = [
 
 [[package]]
 name = "koi-pond"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "icy_sixel",
  "koi-audio",
@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "koi-render"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "bytemuck",
  "koi-sim",
@@ -506,18 +506,18 @@ dependencies = [
 
 [[package]]
 name = "koi-sim"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "koi-synth"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "koi-sim",
 ]
 
 [[package]]
 name = "koi-term"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "base64",
  "miniz_oxide",
@@ -528,7 +528,7 @@ dependencies = [
 
 [[package]]
 name = "koi-theme"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "serde",
  "toml",
@@ -536,7 +536,7 @@ dependencies = [
 
 [[package]]
 name = "koi-web"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "koi-render",
  "koi-sim",
