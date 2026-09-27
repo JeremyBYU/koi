@@ -25,9 +25,9 @@ lint:
 fmt:
     cargo fmt
 
-# Everything CI checks on Linux: formatting, lints, tests and docs
+# What CI checks on Linux: formatting, lints, tests and docs (CI also builds on the oldest supported Rust)
 check: lint test
-    cargo doc --workspace --no-deps
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
 # Install the web page's build tools: wasm-bindgen-cli at the version in Cargo.lock, and the wasm target
 web-tools:

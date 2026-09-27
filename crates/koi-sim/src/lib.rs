@@ -412,8 +412,9 @@ pub struct Bubble {
     pub age: f32,
 }
 
-/// The koi and the food, in water pixels (the same grid as `Water`). Splashes they cause
-/// collect in `splashes` until the caller hands them to the water.
+/// The koi and the food, in water pixels, the simulation's grid. The water is drawn on the
+/// same grid in a painted theme and on its own art grid in a pixel theme, and converts.
+/// Splashes they cause collect in `splashes` until the caller hands them to the water.
 pub struct School {
     w: f32,
     h: f32,

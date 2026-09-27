@@ -8,7 +8,18 @@ permissions:
   contents: write
 
 jobs:
+  # The archives and the web page's download links are named from Cargo.toml, so a tag that
+  # names another version would publish mislabelled files.
+  version:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          test "$GITHUB_REF_NAME" = "v$version" || { echo "The tag is $GITHUB_REF_NAME but Cargo.toml says $version."; exit 1; }
+
   linux:
+    needs: version
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +38,7 @@ jobs:
           path: dist/*.tar.gz
 
   macos:
+    needs: version
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +52,7 @@ jobs:
           path: dist/*.tar.gz
 
   windows:
+    needs: version
     runs-on: windows-latest
     defaults:
       run:

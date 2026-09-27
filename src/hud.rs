@@ -674,7 +674,7 @@ impl Hud {
             .expect("the row's stones always have a place");
             Rect { col: (under.col + 3).saturating_sub(w / 2).min(self.cols.saturating_sub(w)).max(2), row: top.saturating_sub(5).max(1), w, h: 5 }
         });
-        let card = Rect { col: (c0 + width / 2).saturating_sub(17).max(1), row: top.saturating_sub(8).max(1), w: 34, h: 8 };
+        let card = Rect { col: (c0 + width / 2).saturating_sub(17).max(1), row: top.saturating_sub(9).max(1), w: 34, h: 9 };
         let chip = self.peek.as_ref().filter(|p| !p.label.is_empty()).map(|peek| {
             let under = row[peek.element.slot().min(4)].expect("the row's stones always have a place");
             let w = peek.label.chars().count() + 2;
@@ -842,6 +842,8 @@ impl Hud {
                 spans.push((card.col + 19, row, key2, dim));
                 spans.push((card.col + 23, row, what2.to_string(), ink));
             }
+            spans.push((card.col + 2, card.row + 7, "music by".to_string(), dim));
+            spans.push((card.col + 11, card.row + 7, "Kevin MacLeod".to_string(), ink));
         }
         if self.settings.hover && self.expanded {
             let hint = match self.hover {
@@ -971,10 +973,10 @@ impl Hud {
     }
 }
 
-/// Bytes of the largest HUD image with `cell_w` x `cell_h` pixel cells: the help card, 34x7
-/// cells, which also covers a tray up to 47 columns.
+/// Bytes of the largest HUD image with `cell_w` x `cell_h` pixel cells: the help card, 34x9
+/// cells, which also covers a tray up to 61 columns.
 pub fn largest_image(cell_w: usize, cell_h: usize) -> usize {
-    34 * cell_w * 7 * cell_h * 4
+    34 * cell_w * 9 * cell_h * 4
 }
 
 /// How a key is written on the help card.
@@ -1029,7 +1031,7 @@ mod tests {
         let r = hud("summer-garden", 160, 45, t0).rects();
         let cells: Vec<(usize, usize, usize)> = r[..5].iter().map(|r| r.map(|r| (r.col, r.row, r.w)).expect("row stone")).collect();
         assert_eq!(cells, [(51, 42, 30), (83, 42, 6), (91, 42, 6), (99, 42, 6), (107, 42, 4)]);
-        assert_eq!(r[6].map(|c| (c.row, c.w, c.h)), Some((34, 34, 8)));
+        assert_eq!(r[6].map(|c| (c.row, c.w, c.h)), Some((33, 34, 9)));
         assert_eq!(hud("summer-garden", 50, 20, t0).rects()[0].map(|p| p.w), Some(20));
         assert_eq!(hud("summer-garden", 40, 20, t0).rects()[0].map(|p| p.w), Some(6));
 

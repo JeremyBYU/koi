@@ -191,26 +191,9 @@ impl Pond {
     /// second; returns whether this tick drew it.
     pub fn tick(&mut self, now_ms: f64) -> bool {
         let dt = f64::from(DT) * 1000.0;
-        let mut sim = self.sim_ms.unwrap_or(now_ms);
-        let mut steps = 0;
-        while sim + dt <= now_ms && steps < 60 {
-            self.before = self.school.fish.iter().map(|f| f.pose()).collect();
-            self.school.step();
-            for splash in self.school.splashes.drain(..) {
-                self.water.splash(splash);
-            }
-            self.water.step();
-            sim += dt;
-            steps += 1;
-        }
-        // After a pause, such as a hidden tab, the pond carries on from now.
-        if steps == 60 {
-            sim = now_ms;
-        }
+        let from = self.sim_ms.unwrap_or(now_ms);
+        let sim = from + 1000.0 * koi_render::advance(&mut self.school, &mut self.water, &mut self.before, (now_ms - from) / 1000.0);
         self.sim_ms = Some(sim);
-        for splash in self.school.splashes.drain(..) {
-            self.water.splash(splash);
-        }
 
         let blend = ((now_ms - sim) / dt).min(1.0) as f32;
         let poses: Vec<Pose> = self.before.iter().zip(&self.school.fish).map(|(before, f)| before.lerp(&f.pose(), blend)).collect();

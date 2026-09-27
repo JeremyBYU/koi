@@ -13,7 +13,7 @@ mod koi;
 mod water;
 
 pub use food::{bubble_sprite, food_sprite};
-pub use frame::{FADE_LEVELS, blend, draw_pond, food_sprites, place_food, place_koi, shown_food, stretch, upscale};
+pub use frame::{FADE_LEVELS, advance, blend, draw_pond, food_sprites, place_food, place_koi, shown_food, stretch, upscale};
 pub use gpu::Gpu;
 pub use koi::Poser;
 pub use water::Water;

@@ -60,6 +60,12 @@ impl Tier {
             Tier::Sixel => 20,
         }
     }
+
+    /// Whether the pond is drawn as one frame, rather than as a Kitty image per koi. In tmux
+    /// it always is, since tmux cannot place images.
+    pub fn framed(self, in_tmux: bool) -> bool {
+        in_tmux || matches!(self, Tier::Sixel | Tier::Blocks)
+    }
 }
 
 /// The tier to draw with: the one `setting` names, else the best the terminal said it has.
@@ -224,12 +230,11 @@ impl Layers {
         }
         largest = largest.max(crate::hud::largest_image(grid.cell_w, grid.cell_h));
         let water_bytes = 4 * if pixel > 0 { screen.0 * screen.1 } else { water.0 * water.1 };
-        let sink = match (tier, tmux) {
-            (Tier::Kitty | Tier::KittyDirect, None) => None,
-            (Tier::Kitty | Tier::KittyDirect, Some(id)) => Some(Sink::Placeholders { id }),
+        let sink = tier.framed(tmux.is_some()).then(|| match (tier, tmux) {
+            (Tier::Kitty | Tier::KittyDirect, id) => Sink::Placeholders { id: id.expect("a framed Kitty tier is only in tmux") },
             (Tier::Sixel, _) => {
                 let colors = caps.sixel.as_ref().map_or(256, |s| s.colors).min(256);
-                Some(Sink::Sixel {
+                Sink::Sixel {
                     colors,
                     palette: Vec::new(),
                     lut: Vec::new(),
@@ -238,10 +243,10 @@ impl Layers {
                     planes: Vec::new(),
                     bottom: Vec::new(),
                     truecolor: caps.truecolor,
-                })
+                }
             }
-            (Tier::Blocks, _) => Some(Sink::Blocks { truecolor: caps.truecolor, prev: Vec::new() }),
-        };
+            (Tier::Blocks, _) => Sink::Blocks { truecolor: caps.truecolor, prev: Vec::new() },
+        });
         let ring = |slots: usize, capacity: usize| if tier == Tier::KittyDirect { Ok(ShmRing::direct()) } else { ShmRing::new(slots, capacity) };
         // In tmux the one frame a frame goes through the main ring.
         let (ring, water_ring) = match &sink {
@@ -760,6 +765,24 @@ fn cube(colour: Rgb) -> (u8, Rgb) {
 mod tests {
     use super::*;
     use koi_term::Sixel;
+    use serde::Deserialize;
+    use serde::de::IntoDeserializer;
+
+    /// A tier's name, which warnings and the stats line show, is the name config.toml and
+    /// `--protocol` take for it.
+    #[test]
+    fn tier_names_are_protocol_names() {
+        for tier in [Tier::Kitty, Tier::KittyDirect, Tier::Sixel, Tier::Blocks] {
+            let protocol = match tier {
+                Tier::Kitty => Protocol::Kitty,
+                Tier::KittyDirect => Protocol::KittyDirect,
+                Tier::Sixel => Protocol::Sixel,
+                Tier::Blocks => Protocol::Blocks,
+            };
+            let read: Result<Protocol, serde::de::value::Error> = Protocol::deserialize(tier.name().into_deserializer());
+            assert_eq!(read.ok(), Some(protocol), "{}", tier.name());
+        }
+    }
 
     /// In a pixel theme every koi image is sent at exactly the size of the cells it covers,
     /// so Ghostty does not rescale it, and placed on a multiple of the art pixel, so it shares

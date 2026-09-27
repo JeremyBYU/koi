@@ -1,5 +1,4 @@
 target/
-/.alsa-shim
 /assets/music/*.mp3
 /assets/music/*.ogg
 /.cargo/config.toml

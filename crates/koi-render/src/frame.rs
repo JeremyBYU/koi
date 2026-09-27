@@ -1,10 +1,33 @@
 //! The pond as one RGBA frame: water scaled to the frame, the koi over it, and the food and
 //! bubbles over them. The terminal uses it where it cannot layer images, and the web page for
-//! its canvas.
+//! its canvas. Also `advance`, the fixed-step loop both of them run the pond with.
 
-use crate::{Poser, bubble_sprite, food_sprite};
-use koi_sim::{BUBBLE_LIFE, FoodKind, Pose, School};
+use crate::{Poser, Water, bubble_sprite, food_sprite};
+use koi_sim::{BUBBLE_LIFE, DT, FoodKind, Pose, School};
 use koi_theme::Palette;
+
+/// Steps the school and the water in fixed `DT` steps through `behind` seconds, the time the
+/// simulation is behind the frame, and hands the school's splashes to the water. `before`
+/// keeps each koi's pose from before the last step, for blending. Returns the seconds
+/// stepped, which is `behind` itself after 60 steps: after a long pause the pond carries on
+/// from now rather than catching up.
+pub fn advance(school: &mut School, water: &mut Water, before: &mut Vec<Pose>, behind: f64) -> f64 {
+    let dt = f64::from(DT);
+    let mut steps = 0;
+    while f64::from(steps + 1) * dt <= behind && steps < 60 {
+        *before = school.fish.iter().map(|f| f.pose()).collect();
+        school.step();
+        for splash in school.splashes.drain(..) {
+            water.splash(splash);
+        }
+        water.step();
+        steps += 1;
+    }
+    for splash in school.splashes.drain(..) {
+        water.splash(splash);
+    }
+    if steps == 60 { behind } else { f64::from(steps) * dt }
+}
 
 /// Fade levels of each food kind's sprites, and stages of the bubble's.
 pub const FADE_LEVELS: usize = 8;
@@ -158,5 +181,26 @@ pub fn upscale(src: &[u8], w: usize, k: usize, out_w: usize, out_h: usize, dst: 
         } else {
             dst.extend_from_within(dst.len() - out_w * 4..);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use koi_theme::{Catalog, ROOT};
+
+    /// A frame steps whole `DT`s and leaves the rest for the next one; a long pause steps
+    /// 60 times and then counts as caught up.
+    #[test]
+    fn advance_steps_whole_ticks_and_skips_a_long_pause() {
+        let theme = Catalog::load(None).0.resolve(ROOT).expect("root theme");
+        let mut school = School::new(64, 36, 3, 5);
+        let mut water = Water::new(None, 64, 36, [1.0; 2], 0.25, &theme, 5);
+        let mut before = Vec::new();
+        let dt = f64::from(DT);
+        assert_eq!(advance(&mut school, &mut water, &mut before, 2.5 * dt), 2.0 * dt);
+        assert_eq!(before.len(), 3);
+        assert_eq!(advance(&mut school, &mut water, &mut before, 0.5 * dt), 0.0);
+        assert_eq!(advance(&mut school, &mut water, &mut before, 30.0), 30.0);
     }
 }

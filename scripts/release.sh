@@ -5,9 +5,9 @@
 # On Linux, koi-<version>-x86_64-linux.tar.gz and koi-<version>-aarch64-linux.tar.gz: one
 # stripped binary each that runs on glibc 2.17 or newer and needs only libasound.so.2 besides
 # libc. Vulkan is loaded at run time when present. Needs zig, cargo-zigbuild, jq, the rustup
-# targets x86_64- and aarch64-unknown-linux-gnu, and ALSA for the host build (libasound2-dev,
-# or the shim in docs/ARCHITECTURE.md). The cross builds link against a stub libasound.so with
-# the ALSA symbols a host build uses, at their symbol versions, so no aarch64 ALSA is needed.
+# targets x86_64- and aarch64-unknown-linux-gnu, and libasound2-dev for the host build. The cross
+# builds link against a stub libasound.so with the ALSA symbols a host build uses, at their symbol
+# versions, so no aarch64 ALSA is needed.
 #
 # On macOS, koi-<version>-macos.tar.gz: one universal binary for Apple silicon and Intel.
 # Needs jq and the rustup targets aarch64- and x86_64-apple-darwin.

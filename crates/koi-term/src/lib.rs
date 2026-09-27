@@ -1031,4 +1031,27 @@ mod tests {
             }
         }
     }
+
+    /// Random bytes, as line noise or a confused terminal might send, never panic, and the
+    /// parser never claims more bytes than it was given. Half are drawn from the bytes escape
+    /// sequences are made of, so the parser's unfinished states are reached too.
+    #[test]
+    fn random_bytes_never_panic() {
+        const PARTS: &[u8] = b"\x1b[<;0123456789MmABIO_Gi=\\~";
+        let mut state: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let small = |n: u64| usize::try_from(n).expect("a small number fits usize");
+        for _ in 0..5000 {
+            let bytes: Vec<u8> = (0..small(next() % 48))
+                .map(|_| if next() % 2 == 0 { PARTS[small(next()) % PARTS.len()] } else { u8::try_from(next() % 256).expect("below 256") })
+                .collect();
+            let (_, used) = parse_input(&bytes);
+            assert!(used <= bytes.len(), "used {used} of {} bytes: {bytes:?}", bytes.len());
+        }
+    }
 }

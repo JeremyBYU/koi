@@ -11,6 +11,8 @@ use koi_sim::{DT, FoodKind, Pose, School};
 use koi_term::{self as term, Caps, Input};
 use koi_theme::{Catalog, ROOT, Rgb, Theme, Time};
 use layers::{Grid, Layers, Tier};
+use serde::Deserialize;
+use serde::de::IntoDeserializer;
 use state::State;
 use std::collections::VecDeque;
 use std::io::{self, IsTerminal, Write};
@@ -52,7 +54,9 @@ Default keys (change them in the [input] section of the config):
   ?             show the help card
   r             reload the config and themes
   d             show the frame rate
-  q, Ctrl-C     quit";
+  q, Ctrl-C     quit
+
+Music by Kevin MacLeod (incompetech.com), licensed under Creative Commons: By Attribution 4.0.";
 
 fn main() -> ExitCode {
     let (mut config_path, mut theme_arg, mut backend_arg, mut protocol_arg) = (None, None, None, None);
@@ -62,21 +66,17 @@ fn main() -> ExitCode {
             "--config" | "--theme" | "--backend" | "--protocol" => match args.next() {
                 Some(value) if arg == "--config" => config_path = Some(PathBuf::from(value)),
                 Some(value) if arg == "--theme" => theme_arg = Some(value),
-                Some(value) if arg == "--protocol" => match value.as_str() {
-                    "auto" => protocol_arg = Some(Protocol::Auto),
-                    "kitty" => protocol_arg = Some(Protocol::Kitty),
-                    "kitty-direct" => protocol_arg = Some(Protocol::KittyDirect),
-                    "sixel" => protocol_arg = Some(Protocol::Sixel),
-                    "blocks" => protocol_arg = Some(Protocol::Blocks),
-                    _ => {
+                // Read with the config's own names, so a flag and config.toml agree.
+                Some(value) if arg == "--protocol" => match Protocol::deserialize(value.as_str().into_deserializer()) {
+                    Ok(protocol) => protocol_arg = Some(protocol),
+                    Err::<_, serde::de::value::Error>(_) => {
                         eprintln!("koi: `--protocol` takes auto, kitty, kitty-direct, sixel or blocks, not `{value}`\n{USAGE}");
                         return ExitCode::from(2);
                     }
                 },
-                Some(value) => match value.as_str() {
-                    "gpu" => backend_arg = Some(Backend::Gpu),
-                    "cpu" => backend_arg = Some(Backend::Cpu),
-                    _ => {
+                Some(value) => match Backend::deserialize(value.as_str().into_deserializer()) {
+                    Ok(backend) => backend_arg = Some(backend),
+                    Err::<_, serde::de::value::Error>(_) => {
                         eprintln!("koi: `--backend` takes gpu or cpu, not `{value}`\n{USAGE}");
                         return ExitCode::from(2);
                     }
@@ -88,8 +88,12 @@ fn main() -> ExitCode {
             },
             "--list-themes" => {
                 let (catalog, warnings) = Catalog::load(config::dir(Place::Config).map(|d| d.join("themes")).as_deref());
+                // A reader that stops early, like `head`, closes the pipe; the rest is not wanted.
+                let mut out = io::stdout().lock();
                 for s in catalog.summaries().iter().filter(|s| !s.hidden) {
-                    println!("{:<20} {:<20} {:<24} {}", s.id, s.name, format!("{} · {}", s.family, s.time.name()), s.description);
+                    if writeln!(out, "{:<20} {:<20} {:<24} {}", s.id, s.name, format!("{} · {}", s.family, s.time.name()), s.description).is_err() {
+                        break;
+                    }
                 }
                 for w in warnings {
                     eprintln!("koi: {w}");
@@ -278,7 +282,7 @@ fn build(
         }
     };
     // In a frame a sprite pixel is a frame pixel.
-    let framed = tmux.is_some() || matches!(tier, Tier::Sixel | Tier::Blocks);
+    let framed = tier.framed(tmux.is_some());
     let fish_px = if framed { grid.cell_w } else { fish_px_for(grid.cell_w) };
     let scale = if pixel > 0 { per_sim[0] } else { (grid.cols * grid.cell_w) as f32 / grid.water_w as f32 * fish_px as f32 / grid.cell_w as f32 };
     let poser = Poser::new(gpu, &school, theme, scale);
@@ -681,23 +685,8 @@ fn run(
         let frame_at = if now - due < interval { due } else { now };
         let frame_start = Instant::now();
         let food_before = scene.school.food.len();
-        let mut steps = 0;
-        while sim_time + Duration::from_secs_f32(DT) <= frame_at && steps < 60 {
-            scene.before = scene.school.fish.iter().map(|f| f.pose()).collect();
-            scene.school.step();
-            for splash in scene.school.splashes.drain(..) {
-                scene.water.splash(splash);
-            }
-            scene.water.step();
-            sim_time += Duration::from_secs_f32(DT);
-            steps += 1;
-        }
-        if steps == 60 {
-            sim_time = frame_at;
-        }
-        for splash in scene.school.splashes.drain(..) {
-            scene.water.splash(splash);
-        }
+        let behind = frame_at.saturating_duration_since(sim_time).as_secs_f64();
+        sim_time += Duration::from_secs_f64(koi_render::advance(&mut scene.school, &mut scene.water, &mut scene.before, behind));
         if scene.school.food.len() != food_before {
             last_food_change = Some(now);
         }

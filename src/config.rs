@@ -97,8 +97,8 @@ enabled = true
 # a music folder beside the binary.
 music_dir = ""
 # Music volume, 0.0 to 1.0.
-volume = 0.7
-# Generated ambient layer (drone, pad, water, drops), as a fraction of the music volume.
+volume = 0.6
+# Generated ambient layer (drone, water, drops, a shishi-odoshi, crickets at night), as a fraction of the music volume.
 ambient_volume = 0.6
 # A chime when food lands, one voice per food kind.
 chime = true

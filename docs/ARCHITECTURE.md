@@ -1,6 +1,6 @@
 # Architecture
 
-`koi` is a Rust binary built from a Cargo workspace of six crates. It runs in any terminal, directly or inside tmux, and draws best with the Kitty graphics protocol, as Ghostty has (see "Terminals"). It runs on Linux and macOS, and on Windows as an experiment (see "Windows"). Build it with `cargo build --release` and run `target/release/koi`. Plain `cargo build`, `cargo test` and `cargo clippy` at the root cover every crate.
+`koi` is a Rust binary built from a Cargo workspace: seven library crates and the binary itself. It runs in any terminal, directly or inside tmux, and draws best with the Kitty graphics protocol, as Ghostty has (see "Terminals"). It runs on Linux and macOS, and on Windows as an experiment (see "Windows"). Build it with `cargo build --release` and run `target/release/koi`. Plain `cargo build`, `cargo test` and `cargo clippy` at the root cover every crate.
 
 ## Crates
 
@@ -183,7 +183,7 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `theme.name` | "summer-garden" | The starting theme. `koi --list-themes` lists them; docs/STYLE.md describes them. |
 | `audio.enabled` | true | Start the audio thread. |
 | `audio.music_dir` | empty | Folder of mp3 and ogg files, with an optional tracks.json. Empty looks in `$XDG_DATA_HOME/koi-pond/music` and beside the binary (see Music files), and plays the three built-in tracks if none has music. |
-| `audio.volume`, `audio.ambient_volume` | 0.7, 0.6 | Music volume, and the ambient layer as a fraction of it. |
+| `audio.volume`, `audio.ambient_volume` | 0.6, 0.6 | Music volume, and the ambient layer as a fraction of it. |
 | `audio.chime` | true | Chime when food lands, one voice per food kind. |
 | `audio.normalize` | true | Play every track at about the same loudness. Measured gains are cached in `$XDG_CACHE_HOME/koi-pond/loudness.json` (or `~/.cache`). |
 | `input.mouse` | true | Click the pond to drop food. |
@@ -210,6 +210,9 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `a_koi_after_food_can_be_petted` | `koi-sim` | A press on a koi on its way to food pets it, and it leaves the food. |
 | `a_pellet_draws_one_koi` | `koi-sim` | Over 20 ponds, a handful of pellets brings at most one koi per pellet, and one more. |
 | `draws_every_theme`, `pixel_scenes_at_page_sizes` | `koi-web` | Every theme gives a whole water image and every koi, a switch draws the water again, a press on open water feeds, and pixel scenes work at desktop and phone sizes and in a box laid out at zero width. |
+| `the_bed_is_the_steady_sound` | `koi-synth` | Turning the bed off takes out the drone and the rumble, and leaves the drops, chimes and petting sound. |
+| `crickets_sing_at_night` | `koi-synth` | The same pond at night differs from it by day by the crickets alone, and once day comes back they fade away entirely. |
+| `built_in_tracks_decode` | `koi-audio` | Every built-in track decodes all the way through and gets a loudness gain. |
 | `chimes_stay_in_key_and_in_character` | `koi-synth` | Every chime is on the yo scale, and each kind has its own register and loudness. The petting bell is in key and quiet, with a low bloop, and a second pet soon after is silent. |
 | `sprites_fade_or_shrink` | `koi-render` | Food sprites fade (or, for the treat, shrink bite by bite) and keep their size. |
 | `selout_light_edge_stays_toward_the_sun` | `koi-render` | A selout koi keeps its light edge toward the sun heading east and west, on both backends. |
@@ -220,17 +223,21 @@ Print the full commented file with `koi --print-default-config`. The default pat
 | `places_per_platform` | `koi-pond` (config.rs) | The config, music, state and cache folders from given variables: XDG with the HOME fallback on Unix, an empty XDG variable counting as unset, and `%APPDATA%` or `%LOCALAPPDATA%` on Windows, where HOME and XDG are ignored. |
 | `bad_values_warn_and_keep_the_default` | `koi-pond` (config.rs) | Unknown keys, wrong types, unknown names, negative seconds, non-ASCII keys and short arrays each warn with the file and key and keep the default, while good values beside them apply. |
 | `round_trip_and_the_remembered_theme` | `koi-pond` (state.rs) | The state file reads back what was saved, and the remembered theme gives way once config.toml names another. |
+| `advance_steps_whole_ticks_and_skips_a_long_pause` | `koi-render` | The fixed-step loop both front ends share steps whole `DT`s and leaves the rest for the next frame, and after a long pause takes 60 steps and counts as caught up. |
 | `subpixel_motion_is_even` | `koi-render` | A koi moved 0.1 sprite pixels per frame has its rendered centroid advance by about 0.1 every frame. It runs on the CPU path, and on the GPU path too when `VK_ICD_FILENAMES` is set. |
 | `parses_mixed_input` | `koi-term` | Focus reports, clicks, releases, drags, scroll, motion, a lone Esc, Alt chords (Alt-`_` too), SS3 and other CSI sequences, Kitty graphics answers, a late XTVERSION answer, and keys in one read come out as the right events. |
 | `caps_from_recorded_answers` | `koi-term` | Answers recorded from Ghostty, WezTerm, xterm, foot, mlterm, tmux in Ghostty, GNOME Terminal (VTE) and a Kitty terminal over SSH, and silence, read into the right `Caps`. |
 | `direct_ring_chunks_and_inflates` | `koi-term` | A direct ring's chunks are at most 4096 base64 bytes with the keys on the first and `m=1` on all but the last, and they inflate back to the image. |
 | `tmux_wrap_doubles_escapes` | `koi-term` | The passthrough doubles every ESC inside it and ends with a single `ESC \`. |
 | `placeholder_cells_carry_row_column_and_id` | `koi-term` | Placeholder cells have the cursor move, the id as a 256-colour foreground, and the right row and column marks, including past the end of the mark table. |
+| `ring_sends_shm_objects` | `koi-term` | A sent image is a shm object under a fresh name that holds its bytes until the terminal unlinks it, and dropping the ring removes every name the terminal left. Unix only. |
+| `random_bytes_never_panic` | `koi-term` | Thousands of random byte strings, half made of escape-sequence bytes, never panic the input parser, which never claims more bytes than it was given. |
 | `split_reads_carry_over` | `koi-term` | Input split across two reads at any byte gives the same events as one read, once the cut-off sequence is carried into the next read. |
 | `backends_draw_the_same_frame` | `koi-render` (tests/parity.rs) | One fixed frame (seed, splashes, 90 steps, koi shadows, a theme switch halfway) of eight themes, water and a posed koi half dived and pleased (joy's head shimmer), matches between the CPU and GPU paths within 2/255 per channel. The themes cover every outline mode, mist, rain and fireflies, and the three pixel themes (palette lock, dither, dash glints, crisp koi), whose switch moves the water to a finer art grid with `regrid`. Without `VK_ICD_FILENAMES` only the CPU half runs. |
 | `lock_table_snaps_to_swatches` | `koi-render` | Every palette lock table entry is a swatch, and each swatch snaps to itself. |
 | `regrid_keeps_the_waves` | `koi-render` | Moving the water to a finer grid keeps a ripple's height and place. |
 | `pixel_sprites_are_screen_sized_and_on_the_art_grid` | `koi-pond` (layers.rs) | In a pixel theme the water and every koi image are sent at exactly screen size, and each koi sits on a multiple of `pixel_px`. |
+| `tier_names_are_protocol_names` | `koi-pond` (layers.rs) | Each tier's name, shown in warnings and the stats line, is the name config.toml and `--protocol` take for it. |
 | `choose_the_best_tier` | `koi-pond` (layers.rs) | Auto picks kitty, kitty-direct, sixel or blocks from `Caps`, WezTerm gets sixel, tmux never gets sixel, too few colours or too small a largest image give blocks, and a forced tier is kept with a warning. |
 | `sixel_round_trips` | `koi-pond` (layers.rs) | Sixel images of heights that are and are not multiples of 6 decode (with icy_sixel) to the palette colours within 3, rows below the image stay unset, and runs of 3 are written out while runs of 4 are run-length encoded. |
 | `sixel_spans_update_the_last_frame` | `koi-pond` (layers.rs) | The images `send` writes, pasted where they go over the previous frame, give the new frame. A row splits at text, text is never drawn over, the cells text leaves are drawn again, the bottom row gets no image, and an unchanged frame sends nothing. |
@@ -246,16 +253,3 @@ Print the full commented file with `koi --print-default-config`. The default pat
 Three tracks are built into the binary as Ogg Vorbis (`assets/music/builtin/`), and they play when the music folder has none. The folder is `audio.music_dir`, or else the first that exists of `$XDG_DATA_HOME/koi-pond/music`, `music/` beside the binary, `../share/koi-pond/music` beside it, and the repository's `assets/music` for a binary in `target/release`.
 
 The full set of mp3 files is not in git. `scripts/fetch-music.sh` downloads every track in `assets/music/tracks.json` from its `download` URL into `$XDG_DATA_HOME/koi-pond/music`, with the track list and credits (`--dest DIR` downloads elsewhere, `--force` downloads them again, `--dry-run` only lists what it would fetch). Credits are in `assets/music/CREDITS.md`.
-
-## Building without libasound2-dev
-
-rodio links against ALSA, and its build finds it through pkg-config, which `libasound2-dev` provides. Without the package, a two-file shim over the runtime library works:
-
-```sh
-mkdir -p .alsa-shim
-ln -s /usr/lib/x86_64-linux-gnu/libasound.so.2 .alsa-shim/libasound.so
-printf 'libdir=${pcfiledir}\nName: alsa\nDescription: shim\nVersion: 1.2.0\nLibs: -L${libdir} -lasound\nCflags:\n' > .alsa-shim/alsa.pc
-PKG_CONFIG_PATH=$PWD/.alsa-shim cargo build --release
-```
-
-Both `.alsa-shim` and a `.cargo/config.toml` that sets `PKG_CONFIG_PATH` are git-ignored.
