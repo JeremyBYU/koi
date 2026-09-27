@@ -2,6 +2,7 @@
  "command": "cargo test -q -p koi-sim --lib 2>&1 | grep \"test result\"",
  "exit": 0,
  "output": "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s\n",
- "seconds": 0.24051601100654807,
- "date": "27 Sep 2026"
+ "seconds": 0.5252948009874672,
+ "date": "27 Sep 2026",
+ "commit": "acb059c"
 }

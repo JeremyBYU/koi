@@ -2,6 +2,7 @@
  "command": "./target/release/koi --print-default-config | head -24",
  "exit": 0,
  "output": "# koi-pond configuration\n#\n# Every key is optional. A missing key, or a missing file, uses the value shown here.\n# Default location: $XDG_CONFIG_HOME/koi-pond/config.toml (or ~/.config/koi-pond/config.toml),\n# on Windows %APPDATA%\\koi-pond\\config.toml.\n# Another file: koi --config PATH\n\n[fps]\n# Frames per second while the window has focus, or while something is happening:\n# pellets in the water, recent input, fresh ripples, or a koi darting.\nfocused = 60\n# Frames per second while the window is unfocused and the pond is calm.\nunfocused_calm = 8\n# Seconds after the last key or click that still count as something happening.\ninput_secs = 3.0\n# Seconds after food lands, is eaten or sinks that the ripples count as something happening.\nripple_secs = 8.0\n# A koi faster than this multiple of its cruise speed counts as darting.\ndart_speed = 1.6\n\n[render]\n# How the pond reaches the terminal. \"auto\" asks the terminal and picks the best it has:\n# \"kitty\" (Kitty graphics through shared memory: Ghostty, Kitty), \"kitty-direct\" (Kitty\n# graphics sent inline, which also work over SSH), \"sixel\" (xterm, foot, mlterm, WezTerm),\n",
- "seconds": 0.0022843320039100945,
- "date": "27 Sep 2026"
+ "seconds": 0.0021079169964650646,
+ "date": "27 Sep 2026",
+ "commit": "acb059c"
 }

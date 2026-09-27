@@ -92,7 +92,7 @@ No crate koi depends on is a network client, and the binary imports no socket fu
 
 @run nm -D --undefined-only target/release/koi | grep -c -w -E "socket|connect|getaddrinfo" || true
 
-The one download in the repo is `scripts/fetch-music.sh`, which fetches the music pack with curl (`scripts/fetch-music.sh:41`). That's a separate script, run by hand.
+The binary downloads nothing. Two kinds of script in the repo do, and both are run by hand. The install scripts in `site/` fetch a release and install it only if it matches the release's `SHA256SUMS` (`site/install.sh:48`). `scripts/fetch-music.sh` fetches the music pack with curl, without a checksum (`scripts/fetch-music.sh:41`).
 
 ### Where stderr goes
 

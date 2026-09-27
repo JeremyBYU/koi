@@ -1,4 +1,7 @@
 {
+ ".github/workflows/ci.yml:102-102": [
+  "  install:"
+ ],
  ".github/workflows/ci.yml:20-27": [
   "      - run: cargo fmt --check",
   "      # lavapipe, a Vulkan driver on the CPU, so the GPU and CPU renderers are compared.",
@@ -12,9 +15,6 @@
  ".github/workflows/ci.yml:40-41": [
   "  # Experimental: no terminal test yet, and the GPU parity tests check the CPU half only.",
   "  windows:"
- ],
- ".github/workflows/ci.yml:96-96": [
-  "      - uses: dtolnay/rust-toolchain@1.90"
  ],
  ".github/workflows/pages.yml:49-49": [
   "    if: github.ref == 'refs/heads/main'"
@@ -111,7 +111,7 @@
   "edition = \"2024\"",
   "rust-version = \"1.90\""
  ],
- "README.md:39-39": [
+ "README.md:53-53": [
   "koi comes with three songs. The full set of 19, all by Kevin MacLeod, is a separate [music pack](https://github.com/JeremyBYU/koi/releases/tag/music-v1) of about 170 MB. To install it:"
  ],
  "crates/koi-audio/src/lib.rs:109-112": [
@@ -856,9 +856,6 @@
  "docs/PERFORMANCE.md:92-92": [
   "These are estimates from the prototypes and the floor tests. The finished game was not measured the same way."
  ],
- "justfile:28-28": [
-  "# What CI checks on Linux: formatting, lints, tests and docs (CI also builds on the oldest supported Rust)"
- ],
  "justfile:29-30": [
   "check: lint test",
   "    RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps"
@@ -918,6 +915,28 @@
   "# Ghostty renders with software GL and the game's wgpu uses lavapipe (software Vulkan), so",
   "# nothing touches the NVIDIA GPU that drives the real display. CPU numbers are not",
   "# representative of real use."
+ ],
+ "site/install.ps1:49-49": [
+  "        [Environment]::SetEnvironmentVariable('Path', ($(if ($path) { \"$path;$dir\" } else { $dir })), 'User')"
+ ],
+ "site/install.sh:14-24": [
+  "case \"$(uname -s)\" in",
+  "  Linux)",
+  "    case \"$(uname -m)\" in",
+  "      x86_64 | amd64) target=x86_64-linux ;;",
+  "      aarch64 | arm64) target=aarch64-linux ;;",
+  "      *) echo \"koi has no build for $(uname -m) Linux.\" >&2; exit 1 ;;",
+  "    esac",
+  "    ;;",
+  "  Darwin) target=macos ;;",
+  "  *) echo \"This script is for Linux and macOS. On Windows, see $repo#install.\" >&2; exit 1 ;;",
+  "esac"
+ ],
+ "site/install.sh:30-30": [
+  "  latest=$(curl -fsSLI -o /dev/null -w '%{url_effective}' \"$repo/releases/latest\")"
+ ],
+ "site/install.sh:48-48": [
+  "expected=$(grep \" $archive\\$\" \"$work/SHA256SUMS\" | cut -d ' ' -f 1)"
  ],
  "site/main.js:10-10": [
   "const BED = Math.min(Math.max(Number(new URLSearchParams(location.search).get(\"ambient\") ?? 1) || 0, 0), 1);"

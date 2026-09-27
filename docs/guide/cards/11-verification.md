@@ -43,6 +43,7 @@ On Linux CI, and locally if lavapipe is installed: the parity test fails on the 
 | macos, windows | lints and all tests, without the GPU half |
 | macos-screenshot | runs koi in Ghostty on a Mac and saves a screenshot |
 | msrv | builds on Rust 1.90, the oldest version koi supports |
+| install | runs the install script on Linux, macOS and Windows against the latest release, then `koi --version` |
 | pages | builds the web page and runs it in headless Chrome, as a desktop and as a phone |
 
 A release runs the same CI jobs on the tagged commit and publishes nothing unless they pass (see Dev loop, build and release).

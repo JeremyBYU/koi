@@ -4,7 +4,7 @@
 
 On Linux, a fresh clone needs Rust 1.90 or newer and the ALSA headers (`libasound2-dev`). Then `just run` builds and starts koi, `just test` runs the tests, and `just check` runs almost everything CI checks on Linux. `just` on its own lists every task. Without just, plain `cargo build --release` and `cargo test --workspace` work too.
 
-A release starts when you push a tag like `v0.5.0`. GitHub Actions builds the archives on Linux, macOS and Windows, adds a checksum file, and publishes them as a GitHub release. The web page is separate: it is rebuilt and published from every push to `main`.
+A release starts when you push a tag like `v0.5.0`. GitHub Actions builds the archives on Linux, macOS and Windows, adds a checksum file, and publishes them as a GitHub release. The web page is separate: it is rebuilt and published from every push to `main`. People install a release with a one-line script from the web page, which picks the right archive and checks it.
 
 ::: medium
 ### The command catalogue
@@ -57,6 +57,14 @@ The web page doesn't wait for a tag. `.github/workflows/pages.yml` builds and sm
 ::: check You push tag `v0.5.0`. What gets built, and where does each piece end up?
 First the version job checks that `Cargo.toml` says 0.5.0, and stops everything if it doesn't. Then four archives: `koi-<version>-x86_64-linux.tar.gz` and `-aarch64-linux.tar.gz` from the Linux job, `-macos.tar.gz` from the macOS job, and `-windows-x86_64.zip` from the Windows job. The publish job adds `SHA256SUMS` and uploads all five files to a GitHub release named `koi v0.5.0` (`.github/workflows/release.yml:91`). If any CI check fails on that commit, nothing is published. The web page isn't touched by the tag. It was already deployed by the push to `main`.
 :::
+
+### Installing a release
+
+The web page serves two install scripts: `install.sh` for Linux and macOS, piped into `sh`, and `install.ps1` for Windows, piped into `iex`. The shell script picks the archive from the system and the processor:
+
+@excerpt site/install.sh:14-24
+
+It follows the `releases/latest` redirect to find the newest tag (`site/install.sh:30`), and installs nothing unless the archive matches `SHA256SUMS` (`site/install.sh:48`). koi goes in `~/.local/bin`, with no `sudo`. The Windows script installs to `%LOCALAPPDATA%\Programs\koi` and adds it to the user's PATH (`site/install.ps1:49`). A CI job runs each script on its own system, then runs `koi --version` (`.github/workflows/ci.yml:102`).
 :::
 
 ::: high
@@ -98,15 +106,11 @@ It starts from the normal release settings and adds three. `lto = "fat"` optimiz
 
 ### The music pack is its own release
 
-The binary carries three songs. The full set of 19 is a separate release, tagged `music-v1` (`README.md:39`). `scripts/release.sh --music` downloads the tracks and packs them as `dist/koi-music.tar.gz` (`scripts/release.sh:86-93`).
+The binary carries three songs. The full set of 19 is a separate release, tagged `music-v1` (`README.md:53`). `scripts/release.sh --music` downloads the tracks and packs them as `dist/koi-music.tar.gz` (`scripts/release.sh:86-93`).
 
 ::: inferred
 The release workflow calls `scripts/release.sh` without `--music`, and `music-v1` doesn't match the `v*` trigger. So the music pack was built and uploaded by hand, and a code release never rebuilds it.
 :::
-
-### What `just check` leaves to CI
-
-CI's `msrv` job also builds on Rust 1.90, the oldest version koi supports (`.github/workflows/ci.yml:96`). `just check` builds on whatever Rust you have, and says so in its description (`justfile:28`).
 
 ### The tag must match the version
 
