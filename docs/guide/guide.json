@@ -1,0 +1,6 @@
+{
+  "title": "koi, read closely",
+  "project": "koi",
+  "summary": "A koi pond simulator for the terminal and the browser, written in Rust. This guide walks through how it is put together.",
+  "depth": "medium"
+}

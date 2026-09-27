@@ -1,0 +1,7 @@
+{
+ "command": "./target/release/koi --list-themes | sed -n 1,8p",
+ "exit": 0,
+ "output": "summer-garden        Summer Garden        garden \u00b7 noon            Bright summer afternoon, sandy shallows, pink lotus, cream light and blue-violet shade.\nmorning-mist         Morning Mist         garden \u00b7 dawn            Cool dawn haze: blue-grey water, rose-gold first light, fog at the edges.\nevening-garden       Evening Garden       garden \u00b7 evening         Low golden sun, peach light, lavender shadows and long cast shadows over teal water.\nmoonlit-pond         Moonlit Pond         garden \u00b7 night           Blue-violet moonlight, never black; white koi carry the scene, fireflies drift.\ncedar-shade          Cedar Shade          cedar-shade \u00b7 noon       A pond under a heavy canopy: blue-teal water, bright pads, yellow-green sun spots.\ncedar-shade-dusk     Cedar Shade at Dusk  cedar-shade \u00b7 dusk       The same pond at dusk: a low warm sun, long shadows and lavender shade.\ncedar-shade-night    Cedar Shade at Night cedar-shade \u00b7 night      The same pond at night in blue moonlight, with fireflies over the water.\nmaple-afternoon      Maple Afternoon      maple-afternoon \u00b7 noon   Low autumn sun on clear teal water, olive pads, a few rust maple leaves drifting.\n",
+ "seconds": 0.0029297309956746176,
+ "date": "27 Sep 2026"
+}

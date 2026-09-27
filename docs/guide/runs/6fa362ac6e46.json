@@ -1,0 +1,7 @@
+{
+ "command": "nm -D --undefined-only target/release/koi | grep -c -w -E \"socket|connect|getaddrinfo\" || true",
+ "exit": 0,
+ "output": "0\n",
+ "seconds": 0.026065564990858547,
+ "date": "27 Sep 2026"
+}

@@ -1,0 +1,7 @@
+{
+ "command": "du -h target/release/koi assets/music/builtin",
+ "exit": 0,
+ "output": "17M\ttarget/release/koi\n6.6M\tassets/music/builtin\n",
+ "seconds": 0.0018760579987429082,
+ "date": "27 Sep 2026"
+}

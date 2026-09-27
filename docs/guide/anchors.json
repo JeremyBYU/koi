@@ -1,0 +1,1573 @@
+{
+ ".github/workflows/ci.yml:18-25": [
+  "      - run: cargo fmt --check",
+  "      # lavapipe, a Vulkan driver on the CPU, so the GPU and CPU renderers are compared.",
+  "      - run: echo \"VK_ICD_FILENAMES=$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -1)\" >> \"$GITHUB_ENV\"",
+  "      - run: cargo clippy --workspace --all-targets -- -D warnings",
+  "      - run: cargo test --workspace",
+  "      - run: cargo doc --workspace --no-deps",
+  "        env:",
+  "          RUSTDOCFLAGS: -D warnings"
+ ],
+ ".github/workflows/ci.yml:38-39": [
+  "  # Experimental: no terminal test yet, and the GPU parity tests check the CPU half only.",
+  "  windows:"
+ ],
+ ".github/workflows/ci.yml:94-94": [
+  "      - uses: dtolnay/rust-toolchain@1.90"
+ ],
+ ".github/workflows/pages.yml:49-49": [
+  "    if: github.ref == 'refs/heads/main'"
+ ],
+ ".github/workflows/release.yml:10-19": [
+  "jobs:",
+  "  # The archives and the web page's download links are named from Cargo.toml, so a tag that",
+  "  # names another version would publish mislabelled files.",
+  "  version:",
+  "    runs-on: ubuntu-24.04",
+  "    steps:",
+  "      - uses: actions/checkout@v4",
+  "      - run: |",
+  "          version=$(sed -n 's/^version = \"\\(.*\\)\"$/\\1/p' Cargo.toml | head -1)",
+  "          test \"$GITHUB_REF_NAME\" = \"v$version\" || { echo \"The tag is $GITHUB_REF_NAME but Cargo.toml says $version.\"; exit 1; }"
+ ],
+ ".github/workflows/release.yml:5-5": [
+  "    tags: ['v*']"
+ ],
+ ".github/workflows/release.yml:84-85": [
+  "      - run: cd dist && sha256sum -- *.tar.gz *.zip > SHA256SUMS",
+  "      - run: gh release create \"$GITHUB_REF_NAME\" dist/* --title \"koi $GITHUB_REF_NAME\" --generate-notes"
+ ],
+ ".github/workflows/release.yml:85-85": [
+  "      - run: gh release create \"$GITHUB_REF_NAME\" dist/* --title \"koi $GITHUB_REF_NAME\" --generate-notes"
+ ],
+ "Cargo.toml:13-32": [
+  "[workspace.dependencies]",
+  "koi-audio = { path = \"crates/koi-audio\" }",
+  "koi-render = { path = \"crates/koi-render\" }",
+  "koi-sim = { path = \"crates/koi-sim\" }",
+  "koi-synth = { path = \"crates/koi-synth\" }",
+  "koi-term = { path = \"crates/koi-term\" }",
+  "koi-theme = { path = \"crates/koi-theme\" }",
+  "base64 = \"0.22\"",
+  "bytemuck = { version = \"1.25\", features = [\"derive\"] }",
+  "miniz_oxide = \"0.9\"",
+  "pollster = \"1.0\"",
+  "rustix = { version = \"1.1\", features = [\"event\", \"fs\", \"mm\", \"shm\", \"stdio\", \"termios\"] }",
+  "rodio = { version = \"0.22.2\", default-features = false, features = [\"playback\", \"mp3\", \"vorbis\"] }",
+  "serde = { version = \"1\", features = [\"derive\"] }",
+  "serde_json = \"1\"",
+  "signal-hook = \"0.4\"",
+  "symphonia = { version = \"0.5\", default-features = false, features = [\"mp3\", \"ogg\", \"vorbis\"] }",
+  "toml = \"0.9\"",
+  "wgpu = { version = \"30.0.1\", default-features = false, features = [\"vulkan\", \"wgsl\", \"std\"] }",
+  "windows-sys = \"0.61\""
+ ],
+ "Cargo.toml:20-32": [
+  "base64 = \"0.22\"",
+  "bytemuck = { version = \"1.25\", features = [\"derive\"] }",
+  "miniz_oxide = \"0.9\"",
+  "pollster = \"1.0\"",
+  "rustix = { version = \"1.1\", features = [\"event\", \"fs\", \"mm\", \"shm\", \"stdio\", \"termios\"] }",
+  "rodio = { version = \"0.22.2\", default-features = false, features = [\"playback\", \"mp3\", \"vorbis\"] }",
+  "serde = { version = \"1\", features = [\"derive\"] }",
+  "serde_json = \"1\"",
+  "signal-hook = \"0.4\"",
+  "symphonia = { version = \"0.5\", default-features = false, features = [\"mp3\", \"ogg\", \"vorbis\"] }",
+  "toml = \"0.9\"",
+  "wgpu = { version = \"30.0.1\", default-features = false, features = [\"vulkan\", \"wgsl\", \"std\"] }",
+  "windows-sys = \"0.61\""
+ ],
+ "Cargo.toml:64-78": [
+  "# The release archives: scripts/release.sh.",
+  "[profile.dist]",
+  "inherits = \"release\"",
+  "lto = \"fat\"",
+  "codegen-units = 1",
+  "strip = true",
+  "",
+  "# The web page's wasm: scripts/build-site.sh. Optimised for speed, as the pond renders on",
+  "# one CPU core there.",
+  "[profile.web]",
+  "inherits = \"release\"",
+  "lto = \"fat\"",
+  "codegen-units = 1",
+  "panic = \"abort\"",
+  "strip = true"
+ ],
+ "Cargo.toml:65-69": [
+  "[profile.dist]",
+  "inherits = \"release\"",
+  "lto = \"fat\"",
+  "codegen-units = 1",
+  "strip = true"
+ ],
+ "Cargo.toml:8-9": [
+  "edition = \"2024\"",
+  "rust-version = \"1.90\""
+ ],
+ "README.md:39-39": [
+  "koi comes with three songs. The full set of 19, all by Kevin MacLeod, is a separate [music pack](https://github.com/JeremyBYU/koi/releases/tag/music-v1) of about 170 MB. To install it:"
+ ],
+ "crates/koi-audio/src/lib.rs:109-112": [
+  "    pub fn shutdown(self) {",
+  "        drop(self.events);",
+  "        let _ = self.thread.join();",
+  "    }"
+ ],
+ "crates/koi-audio/src/lib.rs:115-121": [
+  "/// Played when the music folder has none: three of the game's tracks, re-encoded to Ogg",
+  "/// Vorbis to keep the binary small.",
+  "const BUILT_IN: [(&str, &[u8]); 3] = [",
+  "    (\"Clear Waters\", include_bytes!(\"../../../assets/music/builtin/clear-waters.ogg\")),",
+  "    (\"Fresh Air\", include_bytes!(\"../../../assets/music/builtin/fresh-air.ogg\")),",
+  "    (\"Kalimba Relaxation Music\", include_bytes!(\"../../../assets/music/builtin/kalimba-relaxation-music.ogg\")),",
+  "];"
+ ],
+ "crates/koi-audio/src/lib.rs:117-117": [
+  "const BUILT_IN: [(&str, &[u8]); 3] = ["
+ ],
+ "crates/koi-audio/src/lib.rs:138-138": [
+  "fn load_tracks(dir: &Path) -> Vec<Track> {"
+ ],
+ "crates/koi-audio/src/lib.rs:139-139": [
+  "    let meta: Vec<serde_json::Value> = fs::read_to_string(dir.join(\"tracks.json\")).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();"
+ ],
+ "crates/koi-audio/src/lib.rs:161-161": [
+  "    let sink = match DeviceSinkBuilder::open_default_sink() {"
+ ],
+ "crates/koi-audio/src/lib.rs:239-239": [
+  "            Err(RecvTimeoutError::Disconnected) => break,"
+ ],
+ "crates/koi-audio/src/lib.rs:273-276": [
+  "                Err(e) => {",
+  "                    failures += 1;",
+  "                    let _ = status.send(Status::Error(format!(\"{}: {e}\", track.path.display())));",
+  "                }"
+ ],
+ "crates/koi-audio/src/lib.rs:294-294": [
+  "fn measure_all(paths: Vec<(PathBuf, Option<&'static [u8]>)>, cache_file: Option<PathBuf>, gains: Sender<(PathBuf, f32)>) {"
+ ],
+ "crates/koi-audio/src/lib.rs:296-296": [
+  "        cache_file.as_ref().and_then(|f| fs::read_to_string(f).ok()).and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();"
+ ],
+ "crates/koi-audio/src/lib.rs:403-403": [
+  "impl Source for AmbientSource {"
+ ],
+ "crates/koi-audio/src/lib.rs:45-45": [
+  "pub enum Event {"
+ ],
+ "crates/koi-audio/src/lib.rs:86-91": [
+  "pub struct Audio {",
+  "    events: Sender<Event>,",
+  "    /// Status messages, in order. Poll it with `try_recv`.",
+  "    pub status: Receiver<Status>,",
+  "    thread: JoinHandle<()>,",
+  "}"
+ ],
+ "crates/koi-audio/src/lib.rs:97-99": [
+  "        let (events, events_rx) = mpsc::channel();",
+  "        let (status_tx, status) = mpsc::channel();",
+  "        let thread = thread::Builder::new().name(\"koi-audio\".into()).spawn(move || run(config, events_rx, status_tx)).expect(\"spawn audio thread\");"
+ ],
+ "crates/koi-render/src/frame.rs:14-30": [
+  "pub fn advance(school: &mut School, water: &mut Water, before: &mut Vec<Pose>, behind: f64) -> f64 {",
+  "    let dt = f64::from(DT);",
+  "    let mut steps = 0;",
+  "    while f64::from(steps + 1) * dt <= behind && steps < 60 {",
+  "        *before = school.fish.iter().map(|f| f.pose()).collect();",
+  "        school.step();",
+  "        for splash in school.splashes.drain(..) {",
+  "            water.splash(splash);",
+  "        }",
+  "        water.step();",
+  "        steps += 1;",
+  "    }",
+  "    for splash in school.splashes.drain(..) {",
+  "        water.splash(splash);",
+  "    }",
+  "    if steps == 60 { behind } else { f64::from(steps) * dt }",
+  "}"
+ ],
+ "crates/koi-render/src/frame.rs:19-22": [
+  "        school.step();",
+  "        for splash in school.splashes.drain(..) {",
+  "            water.splash(splash);",
+  "        }"
+ ],
+ "crates/koi-render/src/frame.rs:195-195": [
+  "    fn advance_steps_whole_ticks_and_skips_a_long_pause() {"
+ ],
+ "crates/koi-render/src/gpu.rs:5-6": [
+  "    pub(crate) device: wgpu::Device,",
+  "    pub(crate) queue: wgpu::Queue,"
+ ],
+ "crates/koi-render/src/koi.rs:191-191": [
+  "    /// Paints every koi in `school` in `theme`. `scale` is sprite pixels per water pixel."
+ ],
+ "crates/koi-render/src/koi.rs:192-193": [
+  "    /// With a `gpu`, poses render there; without one, on the CPU. The koi in `school` must",
+  "    /// not change afterwards: index `k` in the other calls is `school.fish[k]`."
+ ],
+ "crates/koi-render/src/koi.rs:202-203": [
+  "        // An empty pond would need empty GPU buffers, which wgpu refuses.",
+  "        let gpu = gpu.filter(|_| !bodies.is_empty()).map(|gpu| GpuPoser::new(gpu, &bodies, &lock));"
+ ],
+ "crates/koi-render/src/koi.rs:207-207": [
+  "    /// Repaints every koi in `theme`. `school` must be the one this poser was made for. Only"
+ ],
+ "crates/koi-render/src/koi.rs:251-251": [
+  "    pub fn pose(&mut self, k: usize, pose: &Pose, x0: f32, y0: f32, w: usize, h: usize) -> &[u8] {"
+ ],
+ "crates/koi-render/src/koi.rs:255-255": [
+  "        let (body, next) = (&self.bodies[k][i], &self.bodies[k][i + 1]);"
+ ],
+ "crates/koi-render/src/koi.rs:258-258": [
+  "        match &mut self.gpu {"
+ ],
+ "crates/koi-render/src/koi.rs:396-400": [
+  "fn paint_school(school: &School, theme: &Theme, scale: f32) -> Vec<[Body; 3]> {",
+  "    let mut offset = 0;",
+  "    school",
+  "        .fish",
+  "        .iter()"
+ ],
+ "crates/koi-render/src/koi.rs:69-69": [
+  "pub struct Poser {"
+ ],
+ "crates/koi-render/src/lib.rs:15-19": [
+  "pub use food::{bubble_sprite, food_sprite};",
+  "pub use frame::{FADE_LEVELS, advance, blend, draw_pond, food_sprites, place_food, place_koi, shown_food, stretch, upscale};",
+  "pub use gpu::Gpu;",
+  "pub use koi::Poser;",
+  "pub use water::Water;"
+ ],
+ "crates/koi-render/src/lib.rs:21-28": [
+  "/// Runs `work` on its own thread in `scope`, or right away on wasm, which has no threads.",
+  "fn spawn<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, work: impl FnOnce() + Send + 'scope) {",
+  "    if cfg!(target_arch = \"wasm32\") {",
+  "        work();",
+  "    } else {",
+  "        scope.spawn(work);",
+  "    }",
+  "}"
+ ],
+ "crates/koi-render/src/water.rs:1091-1091": [
+  "    std::thread::scope(|scope| {"
+ ],
+ "crates/koi-render/src/water.rs:25-27": [
+  "/// The simulation has its own grid. `splash` and `render` take its units and scale them by",
+  "/// `per_sim` (water pixels per simulation unit, across and down), so a pixel theme can",
+  "/// render on its art grid while the koi swim on, and keep, the same simulation grid."
+ ],
+ "crates/koi-render/src/water.rs:29-33": [
+  "/// Everything that does not move (floor, depth, stones, lily pads, foliage, paper grain) is",
+  "/// painted once per theme on the CPU into `statics` and shared by both backends, so the GPU",
+  "/// and CPU paths only differ in the per-frame shading, which is written twice (here and",
+  "/// water.wgsl). Every `[light]` and `[style]` number the shading uses travels in `Params`,",
+  "/// which the CPU path reads too, so both backends shade from the same values."
+ ],
+ "crates/koi-render/src/water.rs:290-292": [
+  "        let backend = match gpu {",
+  "            Some(gpu) => Backend::Gpu(Box::new(GpuWater::new(gpu, w, h))),",
+  "            None => Backend::Cpu(CpuWater {"
+ ],
+ "crates/koi-render/src/water.rs:34-34": [
+  "pub struct Water {"
+ ],
+ "crates/koi-render/src/water.rs:391-401": [
+  "        let (gpu, old) = match &self.backend {",
+  "            Backend::Gpu(g) => {",
+  "                let bytes = ow * oh * 4;",
+  "                let read = |buffer: &wgpu::Buffer| {",
+  "                    let mut raw = vec![0u8; bytes];",
+  "                    g.gpu.finish_into(g.gpu.device.create_command_encoder(&Default::default()), buffer, &g.readback, &mut raw);",
+  "                    bytemuck::cast_slice::<u8, f32>(&raw).to_vec()",
+  "                };",
+  "                (Some(g.gpu.clone()), [read(&g.heights[g.current]), read(&g.heights[1 - g.current])])",
+  "            }",
+  "            Backend::Cpu(c) => (None, [c.height.clone(), c.prev_height.clone()]),"
+ ],
+ "crates/koi-render/src/water.rs:416-416": [
+  "        let mut fresh = Water::new(gpu.as_ref(), w, h, per_sim, ratio, theme, self.seed);"
+ ],
+ "crates/koi-render/src/water.rs:428-432": [
+  "    /// Queues a splash, in simulation units, for the next `step`.",
+  "    pub fn splash(&mut self, splash: Splash) {",
+  "        let [kx, ky] = self.per_sim;",
+  "        self.splashes.push(Splash { x: splash.x * kx, y: splash.y * ky, radius: splash.radius * kx, amount: splash.amount });",
+  "    }"
+ ],
+ "crates/koi-render/src/water.rs:448-448": [
+  "        match &mut self.backend {"
+ ],
+ "crates/koi-render/src/water.rs:496-498": [
+  "    /// The painted pond with koi shadows (in simulation units), ripples, clouds, petals and",
+  "    /// weather, as straight RGBA `w` x `h`.",
+  "    pub fn render(&mut self, shadows: &[Shadow]) -> &[u8] {"
+ ],
+ "crates/koi-render/src/water.rs:556-556": [
+  "        match &mut self.backend {"
+ ],
+ "crates/koi-render/src/water.rs:59-65": [
+  "    backend: Backend,",
+  "}",
+  "",
+  "enum Backend {",
+  "    Gpu(Box<GpuWater>),",
+  "    Cpu(CpuWater),",
+  "}"
+ ],
+ "crates/koi-render/src/water.rs:62-62": [
+  "enum Backend {"
+ ],
+ "crates/koi-render/src/water.rs:62-65": [
+  "enum Backend {",
+  "    Gpu(Box<GpuWater>),",
+  "    Cpu(CpuWater),",
+  "}"
+ ],
+ "crates/koi-render/src/water.rs:846-846": [
+  "        let s = (seed ^ (seed >> 32)) as u32;"
+ ],
+ "crates/koi-render/tests/parity.rs:44-56": [
+  "    let gpu = std::env::var_os(\"VK_ICD_FILENAMES\").map(|_| Gpu::new().expect(\"VK_ICD_FILENAMES is set, so an adapter must be found\"));",
+  "    for id in [\"summer-garden\", \"evening-garden\", \"moonlit-pond\", \"morning-mist\", \"rainy-afternoon\", \"hillside-summer\", \"lantern-dusk\", \"pocket-moss\"] {",
+  "        let (cpu_pond, cpu_koi) = frame(None, &catalog, id);",
+  "        let Some(gpu) = &gpu else {",
+  "            eprintln!(\"VK_ICD_FILENAMES is not set; skipping the GPU half\");",
+  "            continue;",
+  "        };",
+  "        let (gpu_pond, gpu_koi) = frame(Some(gpu), &catalog, id);",
+  "        for (what, cpu, gpu) in [(\"water\", &cpu_pond, &gpu_pond), (\"koi\", &cpu_koi, &gpu_koi)] {",
+  "            assert_eq!(cpu.len(), gpu.len());",
+  "            let worst = cpu.iter().zip(gpu.iter()).enumerate().max_by_key(|(_, (a, b))| a.abs_diff(**b)).map(|(i, (a, b))| (i / 4, a.abs_diff(*b)));",
+  "            let (pixel, diff) = worst.expect(\"a non-empty image\");",
+  "            assert!(diff <= 2, \"{id} {what}: pixel {pixel} differs by {diff}/255 between the CPU and the GPU\");"
+ ],
+ "crates/koi-sim/Cargo.toml:1-8": [
+  "[package]",
+  "name = \"koi-sim\"",
+  "version.workspace = true",
+  "edition.workspace = true",
+  "rust-version.workspace = true",
+  "license.workspace = true",
+  "authors.workspace = true",
+  "publish = false"
+ ],
+ "crates/koi-sim/src/lib.rs:10-12": [
+  "/// The fixed simulation step in seconds. Water and koi advance in these steps whatever the",
+  "/// frame rate.",
+  "pub const DT: f32 = 1.0 / 60.0;"
+ ],
+ "crates/koi-sim/src/lib.rs:1194-1214": [
+  "    /// Each pellet draws one koi, not the whole pond. One more may come when a koi is beaten",
+  "    /// to its pellet and turns to another.",
+  "    #[test]",
+  "    fn a_pellet_draws_one_koi() {",
+  "        for seed in 1..=20 {",
+  "            let mut school = School::new(320, 190, 7, seed);",
+  "            for _ in 0..600 {",
+  "                school.step();",
+  "            }",
+  "            let (_, _, landed) = school.drop_food_random(FoodKind::Pellets);",
+  "            let mut came = [false; 7];",
+  "            for _ in 0..(15.0 / DT) as usize {",
+  "                school.step();",
+  "                for (k, f) in school.fish.iter().enumerate() {",
+  "                    came[k] |= matches!(f.mood, Mood::Approach { .. });",
+  "                }",
+  "            }",
+  "            let came = came.iter().filter(|&&c| c).count();",
+  "            assert!(came <= landed + 1, \"seed {seed}: {came} koi came for {landed} pellets\");",
+  "        }",
+  "    }"
+ ],
+ "crates/koi-sim/src/lib.rs:14-14": [
+  "/// A disturbance of the water surface, in water pixels. `amount` can be negative (a wake)."
+ ],
+ "crates/koi-sim/src/lib.rs:2-2": [
+  "//! is in water pixels, the coarse grid the water surface uses, and advances in fixed `DT`"
+ ],
+ "crates/koi-sim/src/lib.rs:233-257": [
+  "enum Mood {",
+  "    Cruise,",
+  "    Rest {",
+  "        left: f32,",
+  "    },",
+  "    Approach {",
+  "        food: u32,",
+  "    },",
+  "    Eat {",
+  "        left: f32,",
+  "    },",
+  "    Linger {",
+  "        left: f32,",
+  "        x: f32,",
+  "        y: f32,",
+  "    },",
+  "    /// Nuzzling a hand at (`x`, `y`). `left` counts down, and `near` up, only while the",
+  "    /// mouth touches it.",
+  "    Nuzzle {",
+  "        left: f32,",
+  "        near: f32,",
+  "        x: f32,",
+  "        y: f32,",
+  "    },",
+  "}"
+ ],
+ "crates/koi-sim/src/lib.rs:276-276": [
+  "pub struct Koi {"
+ ],
+ "crates/koi-sim/src/lib.rs:285-290": [
+  "    /// Body length (BL) in water pixels. Fixed for the koi's life.",
+  "    pub len: f32,",
+  "    /// Colour pattern.",
+  "    pub variety: Variety,",
+  "    /// Seeds the pattern noise and the koi's personal reaction times.",
+  "    pub seed: u32,"
+ ],
+ "crates/koi-sim/src/lib.rs:317-317": [
+  "    pub fn pose(&self) -> Pose {"
+ ],
+ "crates/koi-sim/src/lib.rs:325-325": [
+  "pub struct Pose {"
+ ],
+ "crates/koi-sim/src/lib.rs:351-351": [
+  "    pub fn lerp(&self, next: &Pose, t: f32) -> Pose {"
+ ],
+ "crates/koi-sim/src/lib.rs:415-417": [
+  "/// The koi and the food, in water pixels, the simulation's grid. The water is drawn on the",
+  "/// same grid in a painted theme and on its own art grid in a pixel theme, and converts.",
+  "/// Splashes they cause collect in `splashes` until the caller hands them to the water."
+ ],
+ "crates/koi-sim/src/lib.rs:415-433": [
+  "/// The koi and the food, in water pixels, the simulation's grid. The water is drawn on the",
+  "/// same grid in a painted theme and on its own art grid in a pixel theme, and converts.",
+  "/// Splashes they cause collect in `splashes` until the caller hands them to the water.",
+  "pub struct School {",
+  "    w: f32,",
+  "    h: f32,",
+  "    /// The koi, in a fixed order: index `k` is the same koi for the life of the school.",
+  "    pub fish: Vec<Koi>,",
+  "    /// Food in the water, every kind together. Eaten, sunk and faded pieces are removed.",
+  "    pub food: Vec<Food>,",
+  "    /// Bubbles on the surface, and on their way up. Popped ones are removed.",
+  "    pub bubbles: Vec<Bubble>,",
+  "    /// Splashes caused since the caller last drained this. Food landing and being eaten",
+  "    /// makes rings; every swimming koi adds a small wake each step.",
+  "    pub splashes: Vec<Splash>,",
+  "    /// Multiplies every swimming speed. 1 is a calm koi's pace.",
+  "    pub speed: f32,",
+  "    /// Divides turn rates and stretches steering smoothing and the gait. Higher is lazier.",
+  "    pub calmness: f32,"
+ ],
+ "crates/koi-sim/src/lib.rs:418-418": [
+  "pub struct School {"
+ ],
+ "crates/koi-sim/src/lib.rs:434-440": [
+  "    next_food: u32,",
+  "    /// The koi whose turn it is to bite the treat, and the last one that did.",
+  "    nibbler: Option<usize>,",
+  "    last_nibbler: usize,",
+  "    /// Seconds until the next koi may go in for a bite of the treat.",
+  "    next_bite: f32,",
+  "    rng: u64,"
+ ],
+ "crates/koi-sim/src/lib.rs:48-48": [
+  "pub enum FoodKind {"
+ ],
+ "crates/koi-sim/src/lib.rs:498-500": [
+  "    /// `count` koi spread over a `w` x `h` pond, away from the banks. The same `seed` gives",
+  "    /// the same school.",
+  "    pub fn new(w: usize, h: usize, count: usize, seed: u64) -> School {"
+ ],
+ "crates/koi-sim/src/lib.rs:503-503": [
+  "        let mut rng = seed | 1;"
+ ],
+ "crates/koi-sim/src/lib.rs:555-556": [
+  "            speed: 1.0,",
+  "            calmness: 1.0,"
+ ],
+ "crates/koi-sim/src/lib.rs:565-568": [
+  "    /// Drops a handful of `kind` around (`x`, `y`) with a splash, and returns how many pieces",
+  "    /// landed. A point on or near the rim stones moves to the nearest open water first. At the",
+  "    /// kind's cap on pieces in the water fewer land, and with none the water only gets a soft",
+  "    /// tap: the caller should then skip the chime."
+ ],
+ "crates/koi-sim/src/lib.rs:589-590": [
+  "            self.food.push(Food { kind, x: px, y: py, age: 0.0, id: self.next_food, origin: (px, py), bites, mouthed: false });",
+  "            self.next_food = self.next_food.wrapping_add(1);"
+ ],
+ "crates/koi-sim/src/lib.rs:6-6": [
+  "#![forbid(unsafe_code)]"
+ ],
+ "crates/koi-sim/src/lib.rs:614-615": [
+  "    /// within `reach` BL of the hand, the nearest counted in BL and shortened by how",
+  "    /// fond the koi is. `reach` of 0.25 takes a press on a koi's body, and infinity the"
+ ],
+ "crates/koi-sim/src/lib.rs:618-618": [
+  "    pub fn pet(&mut self, x: f32, y: f32, reach: f32, secs: f32) -> Option<usize> {"
+ ],
+ "crates/koi-sim/src/lib.rs:66-67": [
+  "    /// Every kind in HUD order, so `ALL[n]` is the food on key `n + 1`.",
+  "    pub const ALL: [FoodKind; 5] = [FoodKind::Pellets, FoodKind::Flakes, FoodKind::Petals, FoodKind::Seeds, FoodKind::Treat];"
+ ],
+ "crates/koi-sim/src/lib.rs:681-683": [
+  "    /// Advances everything by one `DT`: food ages, drifts and sinks, each koi picks a mood and",
+  "    /// steers, and the closest koi in reach eats, mouths or bites each piece.",
+  "    pub fn step(&mut self) {"
+ ],
+ "crates/koi-sim/src/lib.rs:91-92": [
+  "    fn spec(self) -> Spec {",
+  "        match self {"
+ ],
+ "crates/koi-synth/src/lib.rs:132-132": [
+  "    /// The level of the bed, 1 by default: the drone and the rumble, the continuous low part,"
+ ],
+ "crates/koi-synth/src/lib.rs:75-75": [
+  "/// The level of each layer, from the listening test of 2026-09-26: the pad left out, the"
+ ],
+ "crates/koi-term/src/lib.rs:1018-1033": [
+  "    /// A read can end partway through a sequence. Carrying the leftover into the next read",
+  "    /// gives the same events as one read, wherever the split falls, except that a split right",
+  "    /// after an Esc reads as a lone Esc.",
+  "    #[test]",
+  "    fn split_reads_carry_over() {",
+  "        let input = b\"f\\x1b[<0;12;7M\\x1b[<32;10;7M\\x1b[<0;10;7m\\x1b[<35;9;2M\\x1b[A\\x1bOPq\\x1b_Gi=7;EINVAL:bad\\x1b\\\\t\\x1b[I\";",
+  "        let (whole, _) = parse_input(input);",
+  "        for k in 1..input.len() {",
+  "            let (mut events, used) = parse_input(&input[..k]);",
+  "            let carried = [&input[used..k], &input[k..]].concat();",
+  "            events.extend(parse_input(&carried).0);",
+  "            if input[k - 1] != 0x1b {",
+  "                assert_eq!(events, whole, \"split at {k}\");",
+  "            }",
+  "        }",
+  "    }"
+ ],
+ "crates/koi-term/src/lib.rs:1039-1039": [
+  "    fn random_bytes_never_panic() {"
+ ],
+ "crates/koi-term/src/lib.rs:25-29": [
+  "// The same few functions per platform: raw mode, quit signals, stderr, the raw write, the",
+  "// window size, the input wait, and shm objects.",
+  "#[cfg_attr(unix, path = \"sys_unix.rs\")]",
+  "#[cfg_attr(windows, path = \"sys_windows.rs\")]",
+  "mod sys;"
+ ],
+ "crates/koi-term/src/lib.rs:452-452": [
+  "pub fn probe(timeout: Duration, tmux: bool) -> Vec<u8> {"
+ ],
+ "crates/koi-term/src/lib.rs:499-499": [
+  "pub struct Caps {"
+ ],
+ "crates/koi-term/src/lib.rs:505-505": [
+  "    pub sixel: Option<Sixel>,"
+ ],
+ "crates/koi-term/src/lib.rs:568-575": [
+  "pub fn winsize() -> (usize, usize, usize, usize) {",
+  "    sys::winsize()",
+  "}",
+  "",
+  "/// Waits up to `timeout` for input and returns what arrived, up to 4 KiB. A signal ends the",
+  "/// wait early. An escape sequence can be split across two reads.",
+  "pub fn read_input(timeout: Duration) -> Vec<u8> {",
+  "    sys::read_input(timeout)"
+ ],
+ "crates/koi-term/src/lib.rs:572-574": [
+  "/// Waits up to `timeout` for input and returns what arrived, up to 4 KiB. A signal ends the",
+  "/// wait early. An escape sequence can be split across two reads.",
+  "pub fn read_input(timeout: Duration) -> Vec<u8> {"
+ ],
+ "crates/koi-term/src/lib.rs:580-592": [
+  "pub fn remove_stale_shm() {",
+  "    #[cfg(target_os = \"linux\")]",
+  "    for entry in std::fs::read_dir(\"/dev/shm\").into_iter().flatten().flatten() {",
+  "        let name = entry.file_name();",
+  "        let Some(pid) = name.to_str().and_then(|n| n.strip_prefix(SHM_PREFIX)).and_then(|rest| rest.split('-').next()).and_then(|pid| pid.parse::<u32>().ok())",
+  "        else {",
+  "            continue;",
+  "        };",
+  "        if !std::path::Path::new(\"/proc\").join(pid.to_string()).exists() {",
+  "            let _ = std::fs::remove_file(entry.path());",
+  "        }",
+  "    }",
+  "}"
+ ],
+ "crates/koi-term/src/lib.rs:588-588": [
+  "        if !std::path::Path::new(\"/proc\").join(pid.to_string()).exists() {"
+ ],
+ "crates/koi-term/src/lib.rs:619-620": [
+  "    /// Sends inline (`t=d`), zlib-compressed, instead of through shared memory.",
+  "    direct: bool,"
+ ],
+ "crates/koi-term/src/lib.rs:645-645": [
+  "            let path = PathBuf::from(format!(\"/dev/shm/{}-slot{k}\", ring.prefix));"
+ ],
+ "crates/koi-term/src/lib.rs:645-646": [
+  "            let path = PathBuf::from(format!(\"/dev/shm/{}-slot{k}\", ring.prefix));",
+  "            let file = OpenOptions::new().read(true).write(true).create(true).truncate(true).mode(0o600).open(&path)?;"
+ ],
+ "crates/koi-term/src/lib.rs:65-70": [
+  "        std::panic::set_hook(Box::new(move |info| {",
+  "            // A panic on another thread (the audio decoding a bad file, say) leaves the pond",
+  "            // running, so the terminal must stay as the pond needs it.",
+  "            if std::thread::current().id() == main {",
+  "                restore();",
+  "            }"
+ ],
+ "crates/koi-term/src/lib.rs:66-70": [
+  "            // A panic on another thread (the audio decoding a bad file, say) leaves the pond",
+  "            // running, so the terminal must stay as the pond needs it.",
+  "            if std::thread::current().id() == main {",
+  "                restore();",
+  "            }"
+ ],
+ "crates/koi-term/src/lib.rs:685-685": [
+  "        self.bytes += data.len();"
+ ],
+ "crates/koi-term/src/lib.rs:687-698": [
+  "        if self.direct {",
+  "            // Level 1 compresses the water about as well as 6, several times faster.",
+  "            let text = B64.encode(miniz_oxide::deflate::compress_to_vec_zlib(data, 1));",
+  "            let chunks: Vec<&[u8]> = text.as_bytes().chunks(4096).collect();",
+  "            for (k, chunk) in chunks.iter().enumerate() {",
+  "                let more = u8::from(k + 1 < chunks.len());",
+  "                let head = if k == 0 { format!(\"\\x1b_G{keys},t=d,o=z{quiet},m={more};\") } else { format!(\"\\x1b_Gm={more}{quiet};\") };",
+  "                out.extend_from_slice(head.as_bytes());",
+  "                out.extend_from_slice(chunk);",
+  "                out.extend_from_slice(b\"\\x1b\\\\\");",
+  "            }",
+  "            return Ok(());"
+ ],
+ "crates/koi-term/src/lib.rs:700-712": [
+  "        let name = format!(\"/{}-{}\", self.prefix, self.seq);",
+  "        #[cfg(target_os = \"linux\")]",
+  "        {",
+  "            let (path, ptr) = &self.slots[self.next];",
+  "            // SAFETY: the slot's mapping is `capacity` bytes, at least `data.len()`, and lives",
+  "            // until `drop`; this ring is its only writer.",
+  "            unsafe { std::slice::from_raw_parts_mut(*ptr, data.len()) }.copy_from_slice(data);",
+  "            std::fs::hard_link(path, format!(\"/dev/shm{name}\"))?;",
+  "            self.next = (self.next + 1) % self.slots.len();",
+  "        }",
+  "        #[cfg(not(target_os = \"linux\"))]",
+  "        sys::write_shm(&name, data)?;",
+  "        out.extend_from_slice(format!(\"\\x1b_G{keys},t=s,S={}{quiet};{}\\x1b\\\\\", data.len(), B64.encode(&name)).as_bytes());"
+ ],
+ "crates/koi-term/src/lib.rs:707-707": [
+  "            std::fs::hard_link(path, format!(\"/dev/shm{name}\"))?;"
+ ],
+ "crates/koi-term/src/lib.rs:724-724": [
+  "impl Drop for ShmRing {"
+ ],
+ "crates/koi-term/src/lib.rs:729-730": [
+  "                // SAFETY: the mapping `new` made, `capacity` bytes, not used after this.",
+  "                let _ = unsafe { rustix::mm::munmap(ptr.cast(), self.capacity) };"
+ ],
+ "crates/koi-term/src/lib.rs:74-75": [
+  "        // Libraries (ALSA especially) print to stderr, which would land on the pond.",
+  "        sys::silence_stderr();"
+ ],
+ "crates/koi-term/src/lib.rs:77-77": [
+  "        let mut setup = b\"\\x1b[?1049h\\x1b[?25l\\x1b[?1004h\\x1b[2J\".to_vec();"
+ ],
+ "crates/koi-term/src/lib.rs:77-80": [
+  "        let mut setup = b\"\\x1b[?1049h\\x1b[?25l\\x1b[?1004h\\x1b[2J\".to_vec();",
+  "        if mouse {",
+  "            setup.extend_from_slice(b\"\\x1b[?1000h\\x1b[?1002h\\x1b[?1006h\");",
+  "        }"
+ ],
+ "crates/koi-term/src/lib.rs:800-804": [
+  "/// late XTVERSION answer, a lone Esc, Esc chords, and single-byte keys.",
+  "/// Also returns how many bytes the events used. An escape sequence cut off at the end of",
+  "/// `input` is left over, for the caller to put in front of the next read, since a read can",
+  "/// end partway through one.",
+  "pub fn parse_input(input: &[u8]) -> (Vec<Input>, usize) {"
+ ],
+ "crates/koi-term/src/lib.rs:841-841": [
+  "                None if printable && rest.len() < 512 => break,"
+ ],
+ "crates/koi-term/src/lib.rs:86-89": [
+  "impl Drop for Terminal {",
+  "    fn drop(&mut self) {",
+  "        restore();",
+  "    }"
+ ],
+ "crates/koi-term/src/lib.rs:860-860": [
+  "            events.push(Input::Key(rest[0]));"
+ ],
+ "crates/koi-term/src/lib.rs:94-94": [
+  "    bytes.extend_from_slice(b\"\\x1b[?2026l\\x1b[?1004l\\x1b[?1003l\\x1b[?1002l\\x1b[?1006l\\x1b[?1000l\\x1b[0m\\x1b[?25h\\x1b[?1049l\");"
+ ],
+ "crates/koi-term/src/sys_unix.rs:75-75": [
+  "pub fn read_input(timeout: Duration) -> Vec<u8> {"
+ ],
+ "crates/koi-term/src/sys_unix.rs:85-85": [
+  "    let mut buf = vec![0u8; 4096];"
+ ],
+ "crates/koi-term/src/sys_unix.rs:93-93": [
+  "    let fd = shm::open(name, shm::OFlags::CREATE | shm::OFlags::EXCL | shm::OFlags::RDWR, Permissions::from_raw_mode(0o600))?;"
+ ],
+ "crates/koi-term/src/sys_windows.rs:150-154": [
+  "/// Always fails: no Windows terminal reads a POSIX shm object, so the probe does not offer",
+  "/// `t=s` and a forced `kitty` tier stops with this error.",
+  "pub fn write_shm(_: &str, _: &[u8]) -> io::Result<()> {",
+  "    Err(io::Error::new(io::ErrorKind::Unsupported, \"Kitty images through shared memory need Linux or macOS; use --protocol kitty-direct\"))",
+  "}"
+ ],
+ "crates/koi-theme/src/lib.rs:210-210": [
+  "    /// Device pixels per art pixel, 4 to 8. 0 means painted, at `render.water_px`."
+ ],
+ "crates/koi-theme/src/lib.rs:22-22": [
+  "const BUILT_IN: [(&str, &str); 25] = ["
+ ],
+ "crates/koi-theme/src/lib.rs:23-23": [
+  "    (\"summer-garden\", include_str!(\"../../../themes/summer-garden.toml\")),"
+ ],
+ "crates/koi-theme/src/lib.rs:279-279": [
+  "    Stones,"
+ ],
+ "crates/koi-theme/src/lib.rs:367-367": [
+  "pub struct Scene {"
+ ],
+ "crates/koi-theme/src/lib.rs:402-402": [
+  "pub enum Time {"
+ ],
+ "crates/koi-theme/src/lib.rs:446-446": [
+  "    pub family: String,"
+ ],
+ "crates/koi-theme/src/lib.rs:457-457": [
+  "pub struct Theme {"
+ ],
+ "crates/koi-theme/src/lib.rs:468-469": [
+  "    /// Problems that did not stop the theme loading, such as unknown keys.",
+  "    pub warnings: Vec<String>,"
+ ],
+ "crates/koi-theme/src/lib.rs:476-476": [
+  "pub struct Catalog {"
+ ],
+ "crates/koi-theme/src/lib.rs:494-494": [
+  "    pub fn load(user_dir: Option<&Path>) -> (Catalog, Vec<String>) {"
+ ],
+ "crates/koi-theme/src/lib.rs:500-500": [
+  "                Ok(fresh) if cfg!(debug_assertions) => (fresh, Some(file)),"
+ ],
+ "crates/koi-theme/src/lib.rs:540-541": [
+  "    /// Resolves the theme `name`: an id, or a display name (\"Evening Garden\"). Files merge key by key from the root down the `extends` chain; lists",
+  "    /// replace whole. The error names the file and key, for the toast."
+ ],
+ "crates/koi-theme/src/lib.rs:542-542": [
+  "    pub fn resolve(&self, name: &str) -> Result<Theme, String> {"
+ ],
+ "crates/koi-theme/src/lib.rs:634-634": [
+  "    pub fn next_scene(&self, current: &Summary, forward: bool) -> Option<String> {"
+ ],
+ "crates/koi-theme/src/lib.rs:650-654": [
+  "        let pick = members",
+  "            .iter()",
+  "            .find(|s| s.time == current.time)",
+  "            .or_else(|| members.iter().find(|s| s.time == Time::Noon))",
+  "            .or_else(|| members.iter().min_by_key(|s| s.time))?;"
+ ],
+ "crates/koi-theme/src/lib.rs:660-660": [
+  "    pub fn next_time(&self, current: &Summary, later: bool) -> Option<String> {"
+ ],
+ "crates/koi-web/Cargo.toml:14-19": [
+  "[dependencies]",
+  "koi-render.workspace = true",
+  "koi-sim.workspace = true",
+  "koi-synth.workspace = true",
+  "koi-theme.workspace = true",
+  "wasm-bindgen = \"0.2.129\""
+ ],
+ "crates/koi-web/Cargo.toml:19-19": [
+  "wasm-bindgen = \"0.2.129\""
+ ],
+ "crates/koi-web/src/lib.rs:110-110": [
+  "pub struct Pond {"
+ ],
+ "crates/koi-web/src/lib.rs:144-147": [
+  "    pub fn new(css_w: f32, css_h: f32, density: f32, theme: &str, seed: u32) -> Pond {",
+  "        let catalog = Catalog::load(None).0;",
+  "        let theme = catalog.resolve(theme).or_else(|_| catalog.resolve(ROOT)).expect(\"the built-in root theme resolves\");",
+  "        let (css, seed) = ((css_w, css_h), u64::from(seed));"
+ ],
+ "crates/koi-web/src/lib.rs:146-146": [
+  "        let theme = catalog.resolve(theme).or_else(|_| catalog.resolve(ROOT)).expect(\"the built-in root theme resolves\");"
+ ],
+ "crates/koi-web/src/lib.rs:150-150": [
+  "        let water = Water::new(None, grid.image.0, grid.image.1, grid.per_sim, grid.ratio(), &theme, seed);"
+ ],
+ "crates/koi-web/src/lib.rs:19-22": [
+  "/// The terminal's defaults for `pond.koi`, `render.water_px` and `render.water_fps`.",
+  "const KOI: usize = 5;",
+  "const WATER_PX: f32 = 2.0;",
+  "const WATER_FPS: f64 = 30.0;"
+ ],
+ "crates/koi-web/src/lib.rs:192-192": [
+  "    pub fn tick(&mut self, now_ms: f64) -> bool {"
+ ],
+ "crates/koi-web/src/lib.rs:193-196": [
+  "        let dt = f64::from(DT) * 1000.0;",
+  "        let from = self.sim_ms.unwrap_or(now_ms);",
+  "        let sim = from + 1000.0 * koi_render::advance(&mut self.school, &mut self.water, &mut self.before, (now_ms - from) / 1000.0);",
+  "        self.sim_ms = Some(sim);"
+ ],
+ "crates/koi-web/src/lib.rs:214-214": [
+  "            self.water_image.extend_from_slice(self.water.render(&self.school.shadows()));"
+ ],
+ "crates/koi-web/src/lib.rs:355-355": [
+  "        (0..frames).flat_map(|_| <[f32; 2]>::from(self.ambient.render_frame())).collect()"
+ ],
+ "docs/ARCHITECTURE.md:112-112": [
+  "Windows support is experimental: CI runs clippy and the tests on windows-latest, but nobody has watched the pond run there. Windows Terminal 1.22 and newer has sixel and synchronized updates (mode 2026), so it should get the `sixel` tier; other consoles get `blocks`."
+ ],
+ "docs/ARCHITECTURE.md:18-18": [
+  "The water height field is in `koi-render`, not `koi-sim`, because on the GPU path it lives in GPU buffers and steps in `water.wgsl`. `koi-sim` only produces the splashes that disturb it."
+ ],
+ "docs/ARCHITECTURE.md:59-59": [
+  "The simulation works in water pixels: a grid of `water_px` pixels per cell width, with the height set by the real cell aspect. Koi, food and splashes all use it. `layers.rs` scales it to screen pixels. A painted theme renders the water on the same grid. A pixel theme renders it on its art grid, the window's screen pixels divided by `pixel_px` (rounded up), and `Water` scales the splashes and koi shadows it is given by `per_sim`, its pixels per simulation unit."
+ ],
+ "docs/PERFORMANCE.md:7-7": [
+  "Each prototype ran in a 160x45 Ghostty window under XWayland, with `TMUX` unset. CPU is in percent of one core, averaged over 10 s, for Ghostty and for the game process separately. Each prototype ran 3 times, and the tables show the median, with the range in brackets. The floor tests ran once. A screen recorder captured about 47 to 53 fps from the window, so about 140 to 160 frames per 3 s. \"Distinct\" frames close to \"captured\" means no frames were dropped at that rate. A 30 fps sender shows about half."
+ ],
+ "docs/PERFORMANCE.md:92-92": [
+  "These are estimates from the prototypes and the floor tests. The finished game was not measured the same way."
+ ],
+ "justfile:28-28": [
+  "# What CI checks on Linux: formatting, lints, tests and docs (CI also builds on the oldest supported Rust)"
+ ],
+ "justfile:29-30": [
+  "check: lint test",
+  "    RUSTDOCFLAGS=\"-D warnings\" cargo doc --workspace --no-deps"
+ ],
+ "justfile:33-35": [
+  "web-tools:",
+  "    rustup target add wasm32-unknown-unknown",
+  "    cargo install --locked wasm-bindgen-cli --version $(awk '/^name = \"wasm-bindgen\"$/ { getline; gsub(/[^0-9.]/, \"\"); print; exit }' Cargo.lock)"
+ ],
+ "justfile:5-5": [
+  "lavapipe := if path_exists(\"/usr/share/vulkan/icd.d/lvp_icd.json\") == \"true\" { \"VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json\" } else { \"\" }"
+ ],
+ "scripts/build-site.sh:21-26": [
+  "want=$(awk '/^name = \"wasm-bindgen\"$/ { getline; gsub(/[^0-9.]/, \"\"); print; exit }' Cargo.lock)",
+  "have=$(wasm-bindgen --version | awk '{ print $2 }')",
+  "if [[ $have != \"$want\" ]]; then",
+  "  echo \"wasm-bindgen $have does not match the crate's $want: cargo install --locked wasm-bindgen-cli --version $want\" >&2",
+  "  exit 1",
+  "fi"
+ ],
+ "scripts/build-site.sh:32-33": [
+  "version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == \"koi-pond\") | .version')",
+  "sed -i \"s/{{version}}/$version/g\" \"$out/index.html\""
+ ],
+ "scripts/fetch-music.sh:41-41": [
+  "    curl -fL --retry 3 -o \"$dir/$file.part\" \"$url\""
+ ],
+ "scripts/release.sh:30-30": [
+  "version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == \"koi-pond\") | .version')"
+ ],
+ "scripts/release.sh:36-36": [
+  "  scripts/third-party.sh koi-pond \"$1\" > \"$work/THIRD-PARTY.md\""
+ ],
+ "scripts/release.sh:53-57": [
+  "    echo \"host build, for the ALSA symbols\"",
+  "    cargo build --release -p koi-pond",
+  "    nm -D --undefined-only target/release/koi | awk '$2 ~ /^snd_/ { split($2, s, \"@\"); print s[1], s[2] }' | sort -u > \"$work/symbols\"",
+  "    awk '{ print \"void \" $1 \"(void) {}\" }' \"$work/symbols\" > \"$work/stub.c\"",
+  "    awk '{ nodes[$2] = nodes[$2] \" \" $1 \";\" } END { for (v in nodes) print v \" { global:\" nodes[v] \" };\" }' \"$work/symbols\" > \"$work/libasound.map\""
+ ],
+ "scripts/release.sh:61-61": [
+  "      zig cc -target \"$arch-linux-gnu\" -shared -fPIC -Wl,--version-script=\"$work/libasound.map\" -Wl,-soname,libasound.so.2 -o \"$work/$arch/libasound.so\" \"$work/stub.c\""
+ ],
+ "scripts/release.sh:64-64": [
+  "      PKG_CONFIG_PATH=\"$PWD/$work/$arch\" PKG_CONFIG_ALLOW_CROSS=1 cargo zigbuild --profile dist -p koi-pond --target \"$arch-unknown-linux-gnu.2.17\""
+ ],
+ "scripts/release.sh:74-74": [
+  "    lipo -create -output \"$work/koi\" target/aarch64-apple-darwin/dist/koi target/x86_64-apple-darwin/dist/koi"
+ ],
+ "scripts/release.sh:86-93": [
+  "if [[ $music == 1 ]]; then",
+  "  echo \"music archive\"",
+  "  tmp=$(mktemp -d)",
+  "  mkdir \"$tmp/music\"",
+  "  scripts/fetch-music.sh --dest \"$tmp/music\"",
+  "  tar -C \"$tmp\" -czf dist/koi-music.tar.gz music",
+  "  rm -r \"$tmp\"",
+  "fi"
+ ],
+ "scripts/vshot.sh:9-11": [
+  "# Ghostty renders with software GL and the game's wgpu uses lavapipe (software Vulkan), so",
+  "# nothing touches the NVIDIA GPU that drives the real display. CPU numbers are not",
+  "# representative of real use."
+ ],
+ "site/main.js:10-10": [
+  "const BED = Math.min(Math.max(Number(new URLSearchParams(location.search).get(\"ambient\") ?? 1) || 0, 0), 1);"
+ ],
+ "site/main.js:12-16": [
+  "// The canvas's pixel budget, and its most pixels per CSS pixel. The koi are posed on one core",
+  "// at the canvas's resolution, so a large or dense screen gets a canvas of fewer pixels than",
+  "// it has, which the browser scales up, as the terminal caps its CPU koi.",
+  "const MAX_PIXELS = 1.2e6;",
+  "const MAX_DENSITY = 1.5;"
+ ],
+ "site/main.js:141-141": [
+  "    if (!raf && onScreen && !document.hidden) raf = requestAnimationFrame(frame);"
+ ],
+ "site/main.js:19-32": [
+  "const saved = (key) => {",
+  "  try {",
+  "    return localStorage.getItem(`koi.${key}`);",
+  "  } catch {",
+  "    return null;",
+  "  }",
+  "};",
+  "const save = (key, value) => {",
+  "  try {",
+  "    localStorage.setItem(`koi.${key}`, String(value));",
+  "  } catch {",
+  "    // Private windows may refuse storage; the page works the same without it.",
+  "  }",
+  "};"
+ ],
+ "site/main.js:21-21": [
+  "    return localStorage.getItem(`koi.${key}`);"
+ ],
+ "site/main.js:326-326": [
+  "  fetch(\"music/tracks.json\")"
+ ],
+ "site/main.js:336-336": [
+  "  let volume = Math.min(Math.max(Number(saved(\"volume\") ?? 0.6), 0), 1);"
+ ],
+ "site/main.js:355-355": [
+  "    const ctx = new AudioContext({ sampleRate: Pond.sound_rate(), latencyHint: \"playback\" });"
+ ],
+ "site/main.js:64-64": [
+  "  const pond = new Pond(size[0], size[1], density(...size), new URLSearchParams(location.search).get(\"scene\") ?? saved(\"theme\") ?? \"summer-garden\", (Math.random() * 2 ** 32) >>> 0);"
+ ],
+ "src/config.rs:100-100": [
+  "volume = 0.6"
+ ],
+ "src/config.rs:134-134": [
+  "food = [\"1\", \"2\", \"3\", \"4\", \"5\"]"
+ ],
+ "src/config.rs:138-138": [
+  "pub struct Config {"
+ ],
+ "src/config.rs:160-160": [
+  "pub enum Backend {"
+ ],
+ "src/config.rs:166-166": [
+  "#[serde(rename_all = \"kebab-case\")]"
+ ],
+ "src/config.rs:167-167": [
+  "pub enum Protocol {"
+ ],
+ "src/config.rs:285-285": [
+  "fn place_dir(place: Place, windows: bool, var: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {"
+ ],
+ "src/config.rs:303-306": [
+  "/// Loads `explicit`, or the default path if that exists, over the defaults. A key that is",
+  "/// unknown or has a value the game cannot use comes back as a warning, and the default",
+  "/// stays. Only a file that cannot be read or parsed is an error.",
+  "pub fn load(explicit: Option<&Path>) -> Result<(Config, Vec<String>), String> {"
+ ],
+ "src/config.rs:306-306": [
+  "pub fn load(explicit: Option<&Path>) -> Result<(Config, Vec<String>), String> {"
+ ],
+ "src/config.rs:307-307": [
+  "    let mut table: toml::Table = DEFAULT.parse().map_err(|e| format!(\"built-in default config: {e}\"))?;"
+ ],
+ "src/config.rs:314-315": [
+  "        let text = std::fs::read_to_string(path).map_err(|e| format!(\"{}: {e}\", path.display()))?;",
+  "        let user: toml::Table = text.parse().map_err(|e| format!(\"{}: {e}\", path.display()))?;"
+ ],
+ "src/config.rs:323-323": [
+  "                let Some(default) = table.get(&section).and_then(|s| s.get(&key)).cloned() else {"
+ ],
+ "src/config.rs:327-334": [
+  "                // Each value is tried in a whole config, so serde and `check` judge it with",
+  "                // its real type and every other value already accepted.",
+  "                let mut trial = table.clone();",
+  "                trial[&section][&key] = value;",
+  "                match Config::deserialize(trial.clone()).map_err(|e| e.message().to_string()).and_then(|config| config.check()) {",
+  "                    Ok(()) => table = trial,",
+  "                    Err(e) => warnings.push(format!(\"{}: `{section}.{key}` {e}; using the default {default}\", path.display())),",
+  "                }"
+ ],
+ "src/config.rs:355-359": [
+  "        // `Duration` panics on a negative, NaN or huge number of seconds.",
+  "        for secs in [self.fps.input_secs, self.fps.ripple_secs, f64::from(self.hud.peek_secs), f64::from(self.hud.hold_secs)] {",
+  "            if !(0.0..=86_400.0).contains(&secs) {",
+  "                return Err(format!(\"expects seconds from 0 to 86400, got {secs}\"));",
+  "            }"
+ ],
+ "src/config.rs:361-363": [
+  "        // Each koi and each water pixel costs shared memory, which is RAM.",
+  "        if self.pond.koi > 50 {",
+  "            return Err(format!(\"expects at most 50 koi, got {}\", self.pond.koi));"
+ ],
+ "src/config.rs:361-366": [
+  "        // Each koi and each water pixel costs shared memory, which is RAM.",
+  "        if self.pond.koi > 50 {",
+  "            return Err(format!(\"expects at most 50 koi, got {}\", self.pond.koi));",
+  "        }",
+  "        if self.render.water_px > 16 || self.render.fish_px > 64 {",
+  "            return Err(format!(\"expects water_px up to 16 and fish_px up to 64, got {} and {}\", self.render.water_px, self.render.fish_px));"
+ ],
+ "src/config.rs:71-72": [
+  "# Theme files and this file are reloaded when they change. Changes to [render], [audio],",
+  "# hud.hover, input.mouse, pond.koi and pond.seed apply on the next start."
+ ],
+ "src/hud.rs:138-138": [
+  "struct Peek {"
+ ],
+ "src/hud.rs:51-60": [
+  "pub enum Reply {",
+  "    /// Not the HUD's: the caller handles it as usual (a click on the water feeds, `q`",
+  "    /// quits). A pointer move comes back as `Pass` when it changed nothing on screen and",
+  "    /// must not count as activity.",
+  "    Pass,",
+  "    /// The HUD used it. It counts as input activity.",
+  "    Took,",
+  "    /// The HUD used it and the caller must act.",
+  "    Act(Action),",
+  "}"
+ ],
+ "src/hud.rs:64-64": [
+  "enum Element {"
+ ],
+ "src/hud.rs:94-94": [
+  "enum Tray {"
+ ],
+ "src/layers.rs:15-15": [
+  "const WATER_SLOTS: usize = 6;"
+ ],
+ "src/layers.rs:152-152": [
+  "enum Sink {"
+ ],
+ "src/layers.rs:233-233": [
+  "        let sink = tier.framed(tmux.is_some()).then(|| match (tier, tmux) {"
+ ],
+ "src/layers.rs:233-249": [
+  "        let sink = tier.framed(tmux.is_some()).then(|| match (tier, tmux) {",
+  "            (Tier::Kitty | Tier::KittyDirect, id) => Sink::Placeholders { id: id.expect(\"a framed Kitty tier is only in tmux\") },",
+  "            (Tier::Sixel, _) => {",
+  "                let colors = caps.sixel.as_ref().map_or(256, |s| s.colors).min(256);",
+  "                Sink::Sixel {",
+  "                    colors,",
+  "                    palette: Vec::new(),",
+  "                    lut: Vec::new(),",
+  "                    entries: Vec::new(),",
+  "                    sent: Vec::new(),",
+  "                    planes: Vec::new(),",
+  "                    bottom: Vec::new(),",
+  "                    truecolor: caps.truecolor,",
+  "                }",
+  "            }",
+  "            (Tier::Blocks, _) => Sink::Blocks { truecolor: caps.truecolor, prev: Vec::new() },",
+  "        });"
+ ],
+ "src/layers.rs:250-250": [
+  "        let ring = |slots: usize, capacity: usize| if tier == Tier::KittyDirect { Ok(ShmRing::direct()) } else { ShmRing::new(slots, capacity) };"
+ ],
+ "src/layers.rs:29-29": [
+  "pub enum Tier {"
+ ],
+ "src/layers.rs:29-62": [
+  "pub enum Tier {",
+  "    /// Kitty graphics through shared memory: every koi, the water and the food their own image.",
+  "    Kitty,",
+  "    /// Kitty graphics as `Kitty`, sent inline and compressed, for a terminal that cannot read",
+  "    /// the pond's shared memory, such as one over SSH.",
+  "    KittyDirect,",
+  "    /// One frame, sent as sixel images of the cells that changed.",
+  "    Sixel,",
+  "    /// One frame at two pixels a cell, sent as coloured half-block characters. Any terminal",
+  "    /// shows them.",
+  "    Blocks,",
+  "}",
+  "",
+  "impl Tier {",
+  "    /// The name `render.protocol` and `--protocol` use.",
+  "    pub fn name(self) -> &'static str {",
+  "        match self {",
+  "            Tier::Kitty => \"kitty\",",
+  "            Tier::KittyDirect => \"kitty-direct\",",
+  "            Tier::Sixel => \"sixel\",",
+  "            Tier::Blocks => \"blocks\",",
+  "        }",
+  "    }",
+  "",
+  "    /// The most frames a second worth sending: each inline image or sixel frame is many",
+  "    /// bytes for the terminal to parse, and a painted theme's sixels are the heaviest.",
+  "    pub fn fps_cap(self, pixel: bool) -> u32 {",
+  "        match self {",
+  "            Tier::Kitty | Tier::Blocks => u32::MAX,",
+  "            Tier::KittyDirect => 30,",
+  "            Tier::Sixel if pixel => 30,",
+  "            Tier::Sixel => 20,",
+  "        }",
+  "    }"
+ ],
+ "src/layers.rs:343-343": [
+  "            match &mut t.sink {"
+ ],
+ "src/layers.rs:386-386": [
+  "        match &mut f.sink {"
+ ],
+ "src/layers.rs:44-51": [
+  "    pub fn name(self) -> &'static str {",
+  "        match self {",
+  "            Tier::Kitty => \"kitty\",",
+  "            Tier::KittyDirect => \"kitty-direct\",",
+  "            Tier::Sixel => \"sixel\",",
+  "            Tier::Blocks => \"blocks\",",
+  "        }",
+  "    }"
+ ],
+ "src/layers.rs:492-501": [
+  "            && let Some(water_ring) = &mut self.water_ring",
+  "            && (force || rgba != self.last_water.as_slice())",
+  "        {",
+  "            out.extend_from_slice(b\"\\x1b[H\");",
+  "            let keys = |w: usize, h: usize| format!(\"a=T,f=32,s={w},v={h},i={WATER_ID},p=1,c={},r={},z=-1000,C=1\", self.grid.cols, self.grid.rows);",
+  "            if self.pixel > 0 {",
+  "                upscale(rgba, w, self.pixel, screen_w, screen_h, &mut self.scaled);",
+  "                water_ring.transmit(out, &self.scaled, &keys(screen_w, screen_h))?;",
+  "            } else {",
+  "                water_ring.transmit(out, rgba, &keys(w, h))?;"
+ ],
+ "src/layers.rs:533-533": [
+  "            self.renders += 1;"
+ ],
+ "src/layers.rs:55-62": [
+  "    pub fn fps_cap(self, pixel: bool) -> u32 {",
+  "        match self {",
+  "            Tier::Kitty | Tier::Blocks => u32::MAX,",
+  "            Tier::KittyDirect => 30,",
+  "            Tier::Sixel if pixel => 30,",
+  "            Tier::Sixel => 20,",
+  "        }",
+  "    }"
+ ],
+ "src/layers.rs:64-68": [
+  "    /// Whether the pond is drawn as one frame, rather than as a Kitty image per koi. In tmux",
+  "    /// it always is, since tmux cannot place images.",
+  "    pub fn framed(self, in_tmux: bool) -> bool {",
+  "        in_tmux || matches!(self, Tier::Sixel | Tier::Blocks)",
+  "    }"
+ ],
+ "src/layers.rs:66-68": [
+  "    pub fn framed(self, in_tmux: bool) -> bool {",
+  "        in_tmux || matches!(self, Tier::Sixel | Tier::Blocks)",
+  "    }"
+ ],
+ "src/layers.rs:774-774": [
+  "    fn tier_names_are_protocol_names() {"
+ ],
+ "src/layers.rs:774-786": [
+  "    fn tier_names_are_protocol_names() {",
+  "        for tier in [Tier::Kitty, Tier::KittyDirect, Tier::Sixel, Tier::Blocks] {",
+  "            let protocol = match tier {",
+  "                Tier::Kitty => Protocol::Kitty,",
+  "                Tier::KittyDirect => Protocol::KittyDirect,",
+  "                Tier::Sixel => Protocol::Sixel,",
+  "                Tier::Blocks => Protocol::Blocks,",
+  "            };",
+  "            let read: Result<Protocol, serde::de::value::Error> = Protocol::deserialize(tier.name().into_deserializer());",
+  "            assert_eq!(read.ok(), Some(protocol), \"{}\", tier.name());",
+  "        }",
+  "    }",
+  ""
+ ],
+ "src/layers.rs:81-90": [
+  "    let (tier, confirmed) = match setting {",
+  "        Protocol::Auto if kitty && caps.kitty_shm => (Tier::Kitty, true),",
+  "        Protocol::Auto if kitty && caps.kitty_direct => (Tier::KittyDirect, true),",
+  "        Protocol::Auto if sixel => (Tier::Sixel, true),",
+  "        Protocol::Auto => (Tier::Blocks, true),",
+  "        Protocol::Kitty => (Tier::Kitty, caps.kitty_shm),",
+  "        Protocol::KittyDirect => (Tier::KittyDirect, caps.kitty_direct),",
+  "        Protocol::Sixel => (Tier::Sixel, sixel),",
+  "        Protocol::Blocks => (Tier::Blocks, true),",
+  "    };"
+ ],
+ "src/main.rs:122-127": [
+  "    let (cfg, mut warnings) = match config::load(config_path.as_deref()) {",
+  "        Ok(loaded) => loaded,",
+  "        Err(e) => {",
+  "            eprintln!(\"koi: {e}\");",
+  "            return ExitCode::from(2);",
+  "        }"
+ ],
+ "src/main.rs:134-135": [
+  "    if let Some(name) = &theme_arg",
+  "        && let Err(e) = Catalog::load(config::dir(Place::Config).map(|d| d.join(\"themes\")).as_deref()).0.resolve(name)"
+ ],
+ "src/main.rs:150-150": [
+  "        let mut query = std::process::Command::new(\"tmux\");"
+ ],
+ "src/main.rs:160-160": [
+  "    let reply = term::probe(Duration::from_secs(2), in_tmux);"
+ ],
+ "src/main.rs:163-171": [
+  "    let gpu = match backend_arg.unwrap_or(cfg.render.backend) {",
+  "        Backend::Gpu => match Gpu::new() {",
+  "            Ok(gpu) => Some(gpu),",
+  "            Err(e) => {",
+  "                warnings.push(format!(\"{e}; rendering on the CPU\"));",
+  "                None",
+  "            }",
+  "        },",
+  "        Backend::Cpu => None,"
+ ],
+ "src/main.rs:163-172": [
+  "    let gpu = match backend_arg.unwrap_or(cfg.render.backend) {",
+  "        Backend::Gpu => match Gpu::new() {",
+  "            Ok(gpu) => Some(gpu),",
+  "            Err(e) => {",
+  "                warnings.push(format!(\"{e}; rendering on the CPU\"));",
+  "                None",
+  "            }",
+  "        },",
+  "        Backend::Cpu => None,",
+  "    };"
+ ],
+ "src/main.rs:164-168": [
+  "        Backend::Gpu => match Gpu::new() {",
+  "            Ok(gpu) => Some(gpu),",
+  "            Err(e) => {",
+  "                warnings.push(format!(\"{e}; rendering on the CPU\"));",
+  "                None"
+ ],
+ "src/main.rs:174-174": [
+  "    term::remove_stale_shm();"
+ ],
+ "src/main.rs:179-179": [
+  "            volume: state.volume.unwrap_or(cfg.audio.volume),"
+ ],
+ "src/main.rs:191-193": [
+  "    for w in &warnings {",
+  "        eprintln!(\"koi: {w}\");",
+  "    }"
+ ],
+ "src/main.rs:194-199": [
+  "    match result {",
+  "        Ok(()) => ExitCode::SUCCESS,",
+  "        Err(e) => {",
+  "            eprintln!(\"koi: {e}\");",
+  "            ExitCode::FAILURE",
+  "        }"
+ ],
+ "src/main.rs:203-203": [
+  "struct Scene {"
+ ],
+ "src/main.rs:203-210": [
+  "struct Scene {",
+  "    water: Water,",
+  "    school: School,",
+  "    poser: Poser,",
+  "    layers: Layers,",
+  "    /// The koi before the last simulation step. Frames blend from these to the current koi.",
+  "    before: Vec<Pose>,",
+  "}"
+ ],
+ "src/main.rs:238-238": [
+  "    let water_px = if tier == Tier::Blocks { 1 } else { cfg.render.water_px.max(1) };"
+ ],
+ "src/main.rs:255-258": [
+  "            let (cell_w, cell_h) = match (tier, tmux) {",
+  "                (Tier::Blocks, _) => (1, 2),",
+  "                (Tier::Kitty | Tier::KittyDirect, Some(_)) => (fish_px_for(cell_w), ((cell_h * fish_px_for(cell_w) + cell_w / 2) / cell_w).max(1)),",
+  "                _ => (cell_w, cell_h),"
+ ],
+ "src/main.rs:266-267": [
+  "    let pixel = if tier == Tier::Blocks { usize::from(theme.style.pixel_px > 0) } else { theme.style.pixel_px as usize };",
+  "    let (w, h) = if pixel > 0 { ((grid.cols * grid.cell_w).div_ceil(pixel), (grid.rows * grid.cell_h).div_ceil(pixel)) } else { (grid.water_w, grid.water_h) };"
+ ],
+ "src/main.rs:270-274": [
+  "    let (water, school, before) = match keep {",
+  "        Some(scene) => {",
+  "            let mut water = scene.water;",
+  "            water.regrid(w, h, per_sim, ratio, theme);",
+  "            (water, scene.school, scene.before)"
+ ],
+ "src/main.rs:278-279": [
+  "            school.speed = cfg.pond.speed;",
+  "            school.calmness = cfg.pond.calmness;"
+ ],
+ "src/main.rs:285-285": [
+  "    let framed = tier.framed(tmux.is_some());"
+ ],
+ "src/main.rs:308-308": [
+  "        Toast { text, until: Instant::now() + Duration::from_secs_f32(if error { 6.0 } else { 2.5 }), error }"
+ ],
+ "src/main.rs:321-321": [
+  "fn run("
+ ],
+ "src/main.rs:327-327": [
+  "    audio: Option<&Audio>,"
+ ],
+ "src/main.rs:366-366": [
+  "    let before_restore = match (tier, tmux) {"
+ ],
+ "src/main.rs:366-373": [
+  "    let before_restore = match (tier, tmux) {",
+  "        (Tier::Kitty | Tier::KittyDirect, None) => b\"\\x1b_Ga=d,d=A,q=2\\x1b\\\\\".to_vec(),",
+  "        (Tier::Kitty | Tier::KittyDirect, Some(id)) => {",
+  "            let mut bytes = Vec::new();",
+  "            term::tmux_wrap(&mut bytes, format!(\"\\x1b_Ga=d,d=I,i={id},q=2\\x1b\\\\\").as_bytes());",
+  "            bytes",
+  "        }",
+  "        (Tier::Sixel | Tier::Blocks, _) => Vec::new(),"
+ ],
+ "src/main.rs:375-375": [
+  "    let _terminal = term::Terminal::enter(cfg.input.mouse, before_restore)?;"
+ ],
+ "src/main.rs:380-383": [
+  "    let seed = match cfg.pond.seed {",
+  "        0 => std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.as_nanos() as u64),",
+  "        seed => seed,",
+  "    };"
+ ],
+ "src/main.rs:417-417": [
+  "    loop {"
+ ],
+ "src/main.rs:425-436": [
+  "        let reason = [",
+  "            (focused, \"focused\"),",
+  "            (food_in_water, \"food\"),",
+  "            (recent_input, \"input\"),",
+  "            (ripples, \"ripples\"),",
+  "            (darting, \"darting\"),",
+  "            (petting, \"petting\"),",
+  "            (hud_fading, \"hud\"),",
+  "        ]",
+  "        .iter()",
+  "        .find(|r| r.0)",
+  "        .map_or(\"calm\", |r| r.1);"
+ ],
+ "src/main.rs:443-443": [
+  "        pending.extend(term::read_input(due.saturating_duration_since(now)));"
+ ],
+ "src/main.rs:443-451": [
+  "        pending.extend(term::read_input(due.saturating_duration_since(now)));",
+  "        if term::QUIT.load(Ordering::Relaxed) {",
+  "            return Ok(());",
+  "        }",
+  "        let now = Instant::now();",
+  "        let mut switch_to: Option<String> = None;",
+  "        let mut reload = false;",
+  "        let (events, used) = term::parse_input(&pending);",
+  "        pending.drain(..used);"
+ ],
+ "src/main.rs:450-451": [
+  "        let (events, used) = term::parse_input(&pending);",
+  "        pending.drain(..used);"
+ ],
+ "src/main.rs:451-451": [
+  "        pending.drain(..used);"
+ ],
+ "src/main.rs:506-507": [
+  "                    let (x, y, pan) =",
+  "                        ((col as f32 - 0.5) * w / cols as f32, (row as f32 - 0.5) * h / rows as f32, (col as f32 - 0.5) / cols as f32 * 2.0 - 1.0);"
+ ],
+ "src/main.rs:513-513": [
+  "                    } else if scene.school.drop_food(food, x, y) > 0"
+ ],
+ "src/main.rs:564-564": [
+  "                    if errors >= 3 && matches!(tier, Tier::Kitty | Tier::KittyDirect) {"
+ ],
+ "src/main.rs:572-572": [
+  "        if now - polled >= Duration::from_secs(1) {"
+ ],
+ "src/main.rs:588-588": [
+  "                    (scene.school.speed, scene.school.calmness) = (fresh.pond.speed, fresh.pond.calmness);"
+ ],
+ "src/main.rs:595-595": [
+  "                Err(e) => problems.push(e),"
+ ],
+ "src/main.rs:61-61": [
+  "fn main() -> ExitCode {"
+ ],
+ "src/main.rs:613-613": [
+  "                        scene = build(&cfg, &next, gpu, seed, &mut out, Some(scene), tier, tmux, &caps)?;"
+ ],
+ "src/main.rs:648-648": [
+  "        // A resize keeps the seed, so the pond keeps its layout. It chooses the tier again, as"
+ ],
+ "src/main.rs:661-670": [
+  "            if degrade.is_some() {",
+  "                match tier {",
+  "                    Tier::Kitty => caps.kitty_shm = false,",
+  "                    Tier::KittyDirect => caps.kitty_direct = false,",
+  "                    Tier::Sixel => caps.sixel = None,",
+  "                    Tier::Blocks => {}",
+  "                }",
+  "                setting = Protocol::Auto;",
+  "            }",
+  "            tier = layers::choose(setting, &caps, in_tmux, screen).0;"
+ ],
+ "src/main.rs:662-662": [
+  "                match tier {"
+ ],
+ "src/main.rs:662-667": [
+  "                match tier {",
+  "                    Tier::Kitty => caps.kitty_shm = false,",
+  "                    Tier::KittyDirect => caps.kitty_direct = false,",
+  "                    Tier::Sixel => caps.sixel = None,",
+  "                    Tier::Blocks => {}",
+  "                }"
+ ],
+ "src/main.rs:675-675": [
+  "            scene = build(&cfg, &theme, gpu, seed, &mut out, None, tier, tmux, &caps)?;"
+ ],
+ "src/main.rs:685-689": [
+  "        let frame_at = if now - due < interval { due } else { now };",
+  "        let frame_start = Instant::now();",
+  "        let food_before = scene.school.food.len();",
+  "        let behind = frame_at.saturating_duration_since(sim_time).as_secs_f64();",
+  "        sim_time += Duration::from_secs_f64(koi_render::advance(&mut scene.school, &mut scene.water, &mut scene.before, behind));"
+ ],
+ "src/main.rs:686-686": [
+  "        let frame_start = Instant::now();"
+ ],
+ "src/main.rs:69-70": [
+  "                // Read with the config's own names, so a flag and config.toml agree.",
+  "                Some(value) if arg == \"--protocol\" => match Protocol::deserialize(value.as_str().into_deserializer()) {"
+ ],
+ "src/main.rs:694-694": [
+  "        while let Some(status) = audio.and_then(|a| a.status.try_recv().ok()) {"
+ ],
+ "src/main.rs:696-696": [
+  "                Status::NowPlaying { title } => hud.track(&title, now),"
+ ],
+ "src/main.rs:715-715": [
+  "            let backend = gpu.map_or(\"cpu\".to_string(), |g| format!(\"gpu {}\", g.adapter));"
+ ],
+ "src/main.rs:716-716": [
+  "            let protocol = match (tier, tmux) {"
+ ],
+ "src/main.rs:724-732": [
+  "                format!(",
+  "                    \" {} | {protocol}{terminal} | {backend}{music} | {fps:.1} fps, {sent_fps:.1} sent | target {target} ({reason}) | {} | build p50 {:.2}ms p99 {:.2}ms | {bytes_per_frame} B/frame | shm {shm_rate:.1} MB/s | poses {pose_rate:.0}/s | water {}x{}\",",
+  "                    theme.summary.id,",
+  "                    if focused { \"focused\" } else { \"unfocused\" },",
+  "                    percentile(&build_ms, 0.5),",
+  "                    percentile(&build_ms, 0.99),",
+  "                    scene.water.w,",
+  "                    scene.water.h,",
+  "                ),"
+ ],
+ "src/main.rs:753-753": [
+  "        let blend = ((frame_at - sim_time).as_secs_f32() / DT).min(1.0);"
+ ],
+ "src/main.rs:767-793": [
+  "        let framed = match scene.layers.compose(&mut out, &scene.school, &poses, &mut scene.poser, water.map(|rgba| (rgba, w, h))) {",
+  "            Some(frame) => {",
+  "                if hud_shown {",
+  "                    hud.compose(frame, &mut out, now);",
+  "                }",
+  "                true",
+  "            }",
+  "            None => false,",
+  "        };",
+  "        if framed {",
+  "            let mut cells = if hud_shown { hud.cells() } else { Vec::new() };",
+  "            cells.extend(overlay_cells.map(|n| (1, 1, n)));",
+  "            scene.layers.send(&mut out, overlay.as_deref(), &cells)?;",
+  "        } else {",
+  "            scene.layers.encode(",
+  "                &mut out,",
+  "                &scene.school,",
+  "                &poses,",
+  "                &mut scene.poser,",
+  "                water.map(|rgba| (rgba, w, h)),",
+  "                overlay.as_deref(),",
+  "                cfg.fps.send_when_unchanged,",
+  "            )?;",
+  "            if hud_shown {",
+  "                hud.draw(&mut out, &mut scene.layers.ring, now)?;",
+  "            }",
+  "        }"
+ ],
+ "src/main.rs:794-794": [
+  "        if out.len() > header {"
+ ],
+ "src/main.rs:797-798": [
+  "            stdout.write_all(&out)?;",
+  "            stdout.flush()?;"
+ ],
+ "src/main.rs:799-800": [
+  "            if writing.elapsed() > interval {",
+  "                ceiling = (ceiling / 2).max(FPS_FLOOR);"
+ ],
+ "src/main.rs:799-812": [
+  "            if writing.elapsed() > interval {",
+  "                ceiling = (ceiling / 2).max(FPS_FLOOR);",
+  "                raised = now;",
+  "                slow_since.get_or_insert(now);",
+  "            } else {",
+  "                slow_since = None;",
+  "            }",
+  "            sent += 1;",
+  "            sent_bytes += out.len();",
+  "        }",
+  "        if now - raised >= Duration::from_secs(2) {",
+  "            ceiling = (ceiling + ceiling / 4 + 1).min(cfg.fps.focused.max(FPS_FLOOR));",
+  "            raised = now;",
+  "        }"
+ ],
+ "src/main.rs:828-828": [
+  "            shm_rate = (scene.layers.ring.bytes - shm_mark) as f32 / seconds / 1e6;"
+ ],
+ "src/state.rs:10-10": [
+  "pub struct State {"
+ ],
+ "src/state.rs:27-28": [
+  "    /// The saved state. A missing or unreadable file is an empty state: nothing remembered.",
+  "    pub fn load() -> State {"
+ ],
+ "src/state.rs:28-43": [
+  "    pub fn load() -> State {",
+  "        path().and_then(|p| std::fs::read_to_string(p).ok()).and_then(|text| toml::from_str(&text).ok()).unwrap_or_default()",
+  "    }",
+  "",
+  "    /// The error is a message for the status line. The file is replaced whole, so a crash",
+  "    /// while saving leaves the old one.",
+  "    pub fn save(&self) -> Result<(), String> {",
+  "        let path = path().ok_or(\"no home folder to save state in\")?;",
+  "        let text = toml::to_string(self).map_err(|e| format!(\"state: {e}\"))?;",
+  "        let temp = path.with_extension(\"toml.tmp\");",
+  "        path.parent()",
+  "            .map_or(Ok(()), std::fs::create_dir_all)",
+  "            .and_then(|()| std::fs::write(&temp, text))",
+  "            .and_then(|()| std::fs::rename(&temp, &path))",
+  "            .map_err(|e| format!(\"{}: {e}\", path.display()))",
+  "    }"
+ ],
+ "src/state.rs:32-33": [
+  "    /// The error is a message for the status line. The file is replaced whole, so a crash",
+  "    /// while saving leaves the old one."
+ ],
+ "src/state.rs:34-43": [
+  "    pub fn save(&self) -> Result<(), String> {",
+  "        let path = path().ok_or(\"no home folder to save state in\")?;",
+  "        let text = toml::to_string(self).map_err(|e| format!(\"state: {e}\"))?;",
+  "        let temp = path.with_extension(\"toml.tmp\");",
+  "        path.parent()",
+  "            .map_or(Ok(()), std::fs::create_dir_all)",
+  "            .and_then(|()| std::fs::write(&temp, text))",
+  "            .and_then(|()| std::fs::rename(&temp, &path))",
+  "            .map_err(|e| format!(\"{}: {e}\", path.display()))",
+  "    }"
+ ],
+ "src/state.rs:47-49": [
+  "    pub fn theme_for(&self, configured: &str) -> Option<&str> {",
+  "        self.theme.as_deref().filter(|_| self.config_theme.as_deref() == Some(configured))",
+  "    }"
+ ]
+}
