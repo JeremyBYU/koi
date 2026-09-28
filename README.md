@@ -4,7 +4,7 @@ A small koi pond simulator, meant to be calming and simple.
 
 There are a few koi in a pond. You can feed them, pet them, and change the scene or the time of day. Some quiet music plays with a bit of water sound underneath. There's no score and nothing to win.
 
-It runs in the terminal, and you can also [try it in the browser](https://jeremybyu.github.io/koi/), on a computer or a phone. To see how it's put together, read the [guide to the code](https://jeremybyu.github.io/koi/guide/).
+It runs in the terminal, and you can also [try it in the browser](https://jeremybyu.github.io/koi/), on a computer or phone. 
 
 ![Summer Garden: koi gather around a treat in the middle of the pond, with the HUD stones along the bottom](docs/img/summer-garden.jpg)
 
