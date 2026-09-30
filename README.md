@@ -1,10 +1,10 @@
 # koi
 
-A small koi pond simulator, meant to be calming and simple.
+A small koi pond simulator that is meant to be calming.
 
-There are a few koi in a pond. You can feed them, pet them, and change the scene or the time of day. Some quiet music plays with a bit of water sound underneath. There's no score and nothing to win.
+There are a few koi in a pond. You can feed them, pet them, and change the scene or the time of day. Some quiet music plays with some ambient sounds. There's no score and nothing to win, lol besides peace of mind.
 
-It runs in the terminal, and you can also [try it in the browser](https://jeremybyu.github.io/koi/), on a computer or phone. 
+It runs in the terminal, and you can also [try it in the browser](https://jeremybyu.github.io/koi/).
 
 ![Summer Garden: koi gather around a treat in the middle of the pond, with the HUD stones along the bottom](docs/img/summer-garden.jpg)
 
@@ -12,7 +12,7 @@ It runs in the terminal, and you can also [try it in the browser](https://jeremy
 
 ## Install
 
-koi runs on Linux and macOS, and on Windows as an experiment. It looks best in [Ghostty](https://ghostty.org) or [Kitty](https://sw.kovidgoyal.net/kitty/), which can show real images. Other terminals get a rougher picture (see [Terminals](#terminals)).
+koi runs on Linux, macOS, and Windows. It looks best in [Ghostty](https://ghostty.org) or [Kitty](https://sw.kovidgoyal.net/kitty/), which can show real images. Other terminals get a rougher picture (see [Terminals](#terminals)).
 
 On Linux or macOS:
 
